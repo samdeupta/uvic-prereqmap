@@ -122,6 +122,22 @@ class HTTPClient:
         self._last_request_ts = time.time()  # Updated after request completes
 
         return response
+    
+
+    def get_text(self, url: str) -> str:
+        """
+        Fetches a URL and returns the response body as plain text.
+        """
+
+        return self.get(url).text
+
+
+    def get_json(self, url: str) -> dict | list[dict]:
+        """
+        Fetches a URL and returns the response body as parsed JSON.
+        """
+
+        return self.get(url).json()
 
 
     def close(self):
