@@ -83,18 +83,13 @@ class CourseInfoFetcher:
 
         Kuali API raw JSON return format:
             {
-                "credits": {"value": `CREDITS`, ...},
+                "credits": {"credits": {"min":`MIN_CREDITS`, "max": `MAX_CREDITS`}},
                 "preAndCorequisites": `PREREQ_RAW_HTML`,
                 "preOrCorequisites":  `COREQ_RAW_HTML`,
                 "supplementalNotes":  `CONFLICT_RAW_HTML`
             }
         
-        The "value" field has different formats:
-            - If the course has a fixed credit value: "value": `CREDITS`
-            - If the course has a variable credit range: "value": {"min": `MIN_CREDITS`, "max": `MAX_CREDITS`}
-            - If the course has multiple credit options: "value": [`CREDITS_1`, `CREDITS_2`, ...]
-        
-        For all formats, the minimum credit value is used for the `credits` field.
+        The minimum credit value is used for the `credits` field.
         
         Return format:
             (`CREDITS`, `PREREQ_RAW_HTML`, `COREQ_RAW_HTML`, `CONFLICT_RAW_HTML`)
@@ -105,21 +100,8 @@ class CourseInfoFetcher:
         url     = course_detail_url(self._catalog_id, pid)
         data    : dict = self._client.get_json(url)
 
-        # Handles the different formats of the "value" field
-        credits = (data.get("credits") or {}).get("value")
-
-        if isinstance(credits, str):
-            credits = float(credits)
-        elif isinstance(credits, dict):
-            credits = float(credits.get("min") or 0)
-        elif isinstance(credits, list):
-            credits = [float(val) for val in credits]
-            credits = min(credits)
-        else:
-            raise ParseError(f"Unexpected \"value\" format for course PID {pid}: {credits}")
-
         return (
-            credits,
+            float(((data.get("credits") or {}).get("credits") or {}).get("min") or 0),
             data.get("preAndCorequisites") or None,
             data.get("preOrCorequisites")  or None,
             data.get("supplementalNotes")  or None,
