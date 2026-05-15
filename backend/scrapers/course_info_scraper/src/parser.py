@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from bs4 import BeautifulSoup, Tag
 
-from scrapers.shared.errors import ParseError
+from shared.errors import ParseError
 
 
 # ----- Regexes --------------------
@@ -130,7 +130,7 @@ def _span_to_logic(span: Tag) -> tuple[str, int]:
 # ----- PrereqParser --------------------
 class PrereqParser:
     # ----- Private Methods --------------------
-    def _parse_result_div(self, result_div: Tag) -> dict:
+    def _parse_result_div(self, result_div: Tag) -> dict | None:
         """
         Level 4: Base Case
         ------------------
@@ -156,7 +156,7 @@ class PrereqParser:
         # CASE: ALL node
         if _COMPLETE_ALL_OF_RE.search(raw) or _CONCURRENTLY_RE.search(raw):
             if not codes:
-                raise ParseError(f"(Level 4) Expected course codes for ALL node in: {result_div}")
+                return None     # Empty course list: Degenerate Kuali node, skip silently
             
             return {
                 KEY_LOGIC    : SELECT_ALL,
@@ -177,11 +177,8 @@ class PrereqParser:
             }
 
         # CASE: BASE units_from node
-        if _COMPLETE_N_UNITS_RE.search(raw):
+        if _COMPLETE_N_UNITS_RE.search(raw) and codes:
             units = _get_span_float(result_div)
-
-            if not codes:
-                raise ParseError(f"(Level 4) Expected course codes for BASE units_from node in: {result_div}")
             
             return {
                 KEY_TYPE    : TYPE_UNITS_FROM,
@@ -196,7 +193,7 @@ class PrereqParser:
         return {KEY_TYPE: TYPE_TEXT, KEY_TEXT: text}
 
 
-    def _parse_ruleview_li(self, li: Tag) -> dict:
+    def _parse_ruleview_li(self, li: Tag) -> dict | None:
         """
         Level 3
         -------
@@ -204,6 +201,7 @@ class PrereqParser:
         Finds the result div inside a `<li>` with the `"data-test"` attr and delegates its parsing 
         to `_parse_result_div()`.
 
+        Returns `None` if the result div contains a degenerate node (e.g. empty course list).
         Raises `ParseError` if the expected result div is not found.
         """
 
@@ -251,7 +249,7 @@ class PrereqParser:
         raise ParseError(f"Expected inner <ul> in <div>: {div}")
 
 
-    def _parse_child(self, child: Tag) -> tuple[dict, str, int]:
+    def _parse_child(self, child: Tag) -> tuple[dict | None, str, int]:
         """
         Level 2
         -------
@@ -311,28 +309,45 @@ class PrereqParser:
             if header_text:
                 children.append({KEY_TYPE: TYPE_TEXT, KEY_TEXT: header_text})
 
-            # Find and parse inner <ul>
-            inner_ul, wrapper_li = self._find_inner_ul(child)
+            # Iterate div children directly — handles all structural variants:
+            # - direct ruleView <li> children (most common)
+            # - wrapper <li> containing inner <ul>
+            # - nested groupHeader <div> (double nesting)
+            for div_child in child.children:
+                # Skip non-tag elements (e.g. NavigableString newlines between tags)
+                if not isinstance(div_child, Tag):
+                    continue
 
-            if wrapper_li is not None:
-                span = wrapper_li.find("span", recursive=False)
+                # Skip the header span itself
+                if div_child.name == "span" and "rules_groupHeader_37" in div_child.get("class", []):
+                    continue
 
-                if not span:
-                    raise ParseError(f"(Level 2) Expected <span> in wrapper <li>: {wrapper_li}")
+                # Direct ruleView <li>
+                if div_child.name == "li" and div_child.get("data-test"):
+                    if "ruleView" in div_child.get("data-test", ""):
+                        node = self._parse_ruleview_li(div_child)
+                        if node is not None:
+                            children.append(node)
 
-                child_logic, child_n    = _span_to_logic(span)
-                node                    = self._parse_ul(inner_ul, 
-                                                         logic_override=child_logic, 
-                                                         n_override=child_n)
-            else:
-                node = self._parse_ul(inner_ul)
-                
-            children.append(node)
+                # Wrapper <li> with inner <ul>
+                elif div_child.name == "li" and not div_child.get("data-test"):
+                    span = div_child.find("span", recursive=False)
 
-            # CASE: <li> with "data-test" attr
-            for li in child.find_all("li", recursive=False):
-                if li.get("data-test") and "ruleView" in li.get("data-test", ""):
-                    children.append(self._parse_ruleview_li(li))
+                    if not span:
+                        raise ParseError(f"(Level 2) Expected <span> in wrapper <li>: {div_child}")
+                    
+                    child_logic, child_n    = _span_to_logic(span)
+                    inner_ul                = div_child.find("ul", recursive=False)
+
+                    if not inner_ul:
+                        raise ParseError(f"(Level 2) Expected inner <ul> in wrapper <li>: {div_child}")
+                    
+                    children.append(self._parse_ul(inner_ul, logic_override=child_logic, n_override=child_n))
+
+                # Nested groupHeader <div> — recurse via _parse_child
+                elif div_child.name == "div":
+                    node, _, _ = self._parse_child(div_child)
+                    children.append(node)
 
             return (self._wrap(children, logic, n), logic, n)
 
@@ -392,7 +407,9 @@ class PrereqParser:
 
             # Delegate parsing of child tags down the pipeline
             node, child_logic, child_n = self._parse_child(child)
-            children.append(node)
+
+            if node is not None:
+                children.append(node)
 
             # CASE: Grouping logic override
             if child.name == "div" and child_logic == SELECT_ANY_N:
@@ -419,11 +436,11 @@ class PrereqParser:
         ```
 
         Output node shapes:
-        - {`KEY_LOGIC`: `SELECT_ALL`,   `KEY_CHILDREN`: [...]}
+        - {`KEY_LOGIC`: `SELECT_ALL`, `KEY_CHILDREN`: [...]}
         - {`KEY_LOGIC`: `SELECT_ANY_N`, `KEY_N`: N, `KEY_CHILDREN`: [...]}
-        - {`KEY_TYPE`: `TYPE_COURSE`,        `KEY_CODE`: `<COURSE_CODE>`}
-        - {`KEY_TYPE`: `TYPE_UNITS_FROM`,    `KEY_UNITS`: `<UNITS>`, `KEY_COURSES`: [...]}
-        - {`KEY_TYPE`: `TYPE_TEXT`,          `KEY_TEXT`: `<TEXT>`}
+        - {`KEY_TYPE`: `TYPE_COURSE`, `KEY_CODE`: `<COURSE_CODE>`}
+        - {`KEY_TYPE`: `TYPE_UNITS_FROM`, `KEY_UNITS`: `<UNITS>`, `KEY_COURSES`: [...]}
+        - {`KEY_TYPE`: `TYPE_TEXT`, `KEY_TEXT`: `<TEXT>`}
 
         Raises `ParseError` if the HTML structure fails to be parsed according to expected schema.
         """
