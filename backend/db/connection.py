@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from db.schema import Base
+
 
 # ----- Database --------------------
 class Database:
@@ -48,6 +50,16 @@ class Database:
 
         async with self.engine.begin() as conn:
             await conn.execute(text("SELECT 1"))  # Test connection and table existence
+    
+
+    async def create_tables(self) -> None:
+        """
+        Creates all tables defined in `Base` if they do not already exist.
+        Called once at the start of a scraper run before any data is written.
+        """
+ 
+        async with self.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
 
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
