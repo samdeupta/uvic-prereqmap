@@ -303,50 +303,25 @@ class PrereqParser:
             logic, n = SELECT_ANY_N, 1
             children: list[dict] = []
 
-            # CASE: Non-empty <span> body
+            # Non-empty header span text -> prepend as BASE text node
             header_text = header_span.get_text(strip=True)
 
             if header_text:
                 children.append({KEY_TYPE: TYPE_TEXT, KEY_TEXT: header_text})
 
-            # Iterate div children directly — handles all structural variants:
-            # - direct ruleView <li> children (most common)
-            # - wrapper <li> containing inner <ul>
-            # - nested groupHeader <div> (double nesting)
+            # Delegate each child div back through _parse_child()
             for div_child in child.children:
                 # Skip non-tag elements (e.g. NavigableString newlines between tags)
                 if not isinstance(div_child, Tag):
                     continue
 
-                # Skip the header span itself
+                # Skip the header span itself (already processed above)
                 if div_child.name == "span" and "rules_groupHeader_37" in div_child.get("class", []):
                     continue
 
-                # Direct ruleView <li>
-                if div_child.name == "li" and div_child.get("data-test"):
-                    if "ruleView" in div_child.get("data-test", ""):
-                        node = self._parse_ruleview_li(div_child)
-                        if node is not None:
-                            children.append(node)
+                node, _, _ = self._parse_child(div_child)
 
-                # Wrapper <li> with inner <ul>
-                elif div_child.name == "li" and not div_child.get("data-test"):
-                    span = div_child.find("span", recursive=False)
-
-                    if not span:
-                        raise ParseError(f"(Level 2) Expected <span> in wrapper <li>: {div_child}")
-                    
-                    child_logic, child_n    = _span_to_logic(span)
-                    inner_ul                = div_child.find("ul", recursive=False)
-
-                    if not inner_ul:
-                        raise ParseError(f"(Level 2) Expected inner <ul> in wrapper <li>: {div_child}")
-                    
-                    children.append(self._parse_ul(inner_ul, logic_override=child_logic, n_override=child_n))
-
-                # Nested groupHeader <div> — recurse via _parse_child
-                elif div_child.name == "div":
-                    node, _, _ = self._parse_child(div_child)
+                if node is not None:
                     children.append(node)
 
             return (self._wrap(children, logic, n), logic, n)
