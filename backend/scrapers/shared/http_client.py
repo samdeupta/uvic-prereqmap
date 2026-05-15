@@ -5,16 +5,17 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from scrapers.shared.config import (
-    REQUEST_TIMEOUT_SECS,
-    REQUEST_DELAY_SECS,
-    MAX_RETRIES,
-    RETRY_BACKOFF_FACTOR,
-    RETRY_STATUS_CODES,
-    DEFAULT_USER_AGENT,
-)
+
+# ----- Constants --------------------
+REQUEST_TIMEOUT_SECS = 10
+MAX_RETRIES = 4
+RETRY_BACKOFF_FACTOR = 0.5
+RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
+REQUEST_DELAY_SECS = 0.7
+DEFAULT_USER_AGENT = "UVic PrereqMap Data Scraper"
 
 
+# ---- HTTP Client --------------------
 class HTTPClient:
     def __init__(self,
                  pool_connections: int = 1,

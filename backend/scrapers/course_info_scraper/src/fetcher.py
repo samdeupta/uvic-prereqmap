@@ -3,14 +3,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from scrapers.shared.http_client import HTTPClient
-from scrapers.shared.endpoints import (
+from shared.http_client import HTTPClient
+from shared.endpoints import (
     CALENDAR_URL,
     subject_codes_url,
     all_courses_url,
     course_detail_url,
 )
-from scrapers.shared.errors import InformationFetchError, ParseError
+from shared.errors import InformationFetchError
 
 
 # ----- Regexes --------------------
