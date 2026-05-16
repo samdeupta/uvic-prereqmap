@@ -31,49 +31,49 @@ def _parse_lvl(code: str) -> int:
 
 
 # ----- Course Info Scraper Run --------------------
-async def run():
-    """
-    Full Course Info scraper run pipeline:
-    - Fetches all UVic course data from the Kuali API
-    - Parses prereq HTML
-    - Writes everything to the DB in one transaction.
+class CourseInfoScraper:
+    @staticmethod
+    async def run():
+        """
+        Full Course Info scraper run pipeline:
+        - Fetches all UVic course data from the Kuali API
+        - Parses prereq HTML
+        - Writes everything to the DB in one transaction.
 
-    On any failure the entire transaction is rolled back (no partial data writes).
-    """
+        On any failure the entire transaction is rolled back (no partial data writes).
+        """
 
-    parser = PrereqParser()
+        with HTTPClient("UVic Course Info Scraper") as client:
+            fetcher  = CourseInfoFetcher(client)
+            courses  = fetcher.fetch_all_courses()
 
-    with HTTPClient() as client:
-        fetcher  = CourseInfoFetcher(client)
-        courses  = fetcher.fetch_all_courses()
+        print(f"Fetched {len(courses)} courses.")
 
-    print(f"Fetched {len(courses)} courses.")
+        await db.create_tables()
 
-    await db.create_tables()
+        async with db.async_session() as session:
+            async with session.begin():
+                # Clear old data from tables
+                await session.execute(delete(Course))
 
-    async with db.async_session() as session:
-        async with session.begin():
-            # Clear old data from tables
-            await session.execute(delete(Course))
+                print("Truncated existing data.")
 
-            print("Truncated existing data.")
+                # Insert new course data
+                for course in courses:
+                    prereqs = None
 
-            # Insert new course data
-            for course in courses:
-                prereqs = None
+                    if course.prereq_html:
+                        prereqs = PrereqParser.parse(course.prereq_html)
 
-                if course.prereq_html:
-                    prereqs = parser.parse(course.prereq_html)
+                    session.add(Course(
+                        code    = course.code,
+                        subject = _parse_subject(course.code),
+                        lvl     = _parse_lvl(course.code),
+                        name    = course.name,
+                        credits = course.credits,
+                        prereqs = prereqs,
+                    ))
 
-                session.add(Course(
-                    code    = course.code,
-                    subject = _parse_subject(course.code),
-                    lvl     = _parse_lvl(course.code),
-                    name    = course.name,
-                    credits = course.credits,
-                    prereqs = prereqs,
-                ))
+                print(f"Inserted {len(courses)} courses.")
 
-            print(f"Inserted {len(courses)} courses.")
-
-    print("Scraper run complete.")
+        print("Scraper run complete.")

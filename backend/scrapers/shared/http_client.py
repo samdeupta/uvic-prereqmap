@@ -18,6 +18,7 @@ DEFAULT_USER_AGENT = "UVic PrereqMap Data Scraper"
 # ---- HTTP Client --------------------
 class HTTPClient:
     def __init__(self,
+                 user_agent: str = DEFAULT_USER_AGENT,
                  pool_connections: int = 1,
                  pool_maxsize: int = 1):
         """
@@ -39,6 +40,7 @@ class HTTPClient:
 
         self._pool_connections = pool_connections
         self._pool_maxsize     = pool_maxsize
+        self._user_agent       = user_agent
 
 
     # ----- Private Methods --------------------
@@ -71,7 +73,7 @@ class HTTPClient:
 
         session = requests.Session()
         session.headers.update({
-            "User-Agent":      DEFAULT_USER_AGENT,
+            "User-Agent":      self._user_agent,
             "Accept":          "application/json, text/html;q=0.9, */*;q=0.8",
             "Accept-Encoding": "gzip, deflate, br",
             "Connection":      "keep-alive",

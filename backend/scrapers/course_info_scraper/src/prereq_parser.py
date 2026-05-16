@@ -130,7 +130,8 @@ def _span_to_logic(span: Tag) -> tuple[str, int]:
 # ----- PrereqParser --------------------
 class PrereqParser:
     # ----- Private Methods --------------------
-    def _parse_result_div(self, result_div: Tag) -> dict | None:
+    @staticmethod
+    def _parse_result_div(result_div: Tag) -> dict | None:
         """
         Level 4: Base Case
         ------------------
@@ -193,7 +194,8 @@ class PrereqParser:
         return {KEY_TYPE: TYPE_TEXT, KEY_TEXT: text}
 
 
-    def _parse_ruleview_li(self, li: Tag) -> dict | None:
+    @staticmethod
+    def _parse_ruleview_li(li: Tag) -> dict | None:
         """
         Level 3
         -------
@@ -210,10 +212,11 @@ class PrereqParser:
         if not result_div:
             raise ParseError(f"""(Level 3) Expected result div with "data-test" attr in <li>: {li}""")
 
-        return self._parse_result_div(result_div)
+        return PrereqParser._parse_result_div(result_div)
 
 
-    def _find_inner_ul(self, div: Tag) -> tuple[Tag, Tag | None]:
+    @staticmethod
+    def _find_inner_ul(div: Tag) -> tuple[Tag, Tag | None]:
         """
         Finds the `<ul>` tag inside a `<div>` containing a `<span class="rules_groupHeader_37">`.
 
@@ -231,7 +234,7 @@ class PrereqParser:
             # CASE: If nested div, recurse into it
             if child.name == "div":
                 try:
-                    return self._find_inner_ul(child)
+                    return PrereqParser._find_inner_ul(child)
                 except ParseError:
                     continue
             
@@ -249,7 +252,8 @@ class PrereqParser:
         raise ParseError(f"Expected inner <ul> in <div>: {div}")
 
 
-    def _parse_child(self, child: Tag) -> tuple[dict | None, str, int]:
+    @staticmethod
+    def _parse_child(child: Tag) -> tuple[dict | None, str, int]:
         """
         Level 2
         -------
@@ -289,7 +293,7 @@ class PrereqParser:
             if not inner_ul:
                 raise ParseError(f"(Level 2) Expected inner <ul> in wrapper <li>: {child}")
 
-            node = self._parse_ul(inner_ul, logic_override=logic, n_override=n)
+            node = PrereqParser._parse_ul(inner_ul, logic_override=logic, n_override=n)
 
             return (node, logic, n)
 
@@ -319,26 +323,27 @@ class PrereqParser:
                 if div_child.name == "span" and "rules_groupHeader_37" in div_child.get("class", []):
                     continue
 
-                node, _, _ = self._parse_child(div_child)
+                node, _, _ = PrereqParser._parse_child(div_child)
 
                 if node is not None:
                     children.append(node)
 
-            return (self._wrap(children, logic, n), logic, n)
+            return (PrereqParser._wrap(children, logic, n), logic, n)
 
         # CASE: Type 3
         if child.name == "li" and child.get("data-test"):
             if "ruleView" not in child.get("data-test", ""):
                 raise ParseError(f"""(Level 2) Unexpected "data-test" value in <li>: {child.get("data-test")}""")
 
-            node = self._parse_ruleview_li(child)
+            node = PrereqParser._parse_ruleview_li(child)
 
             return (node, SELECT_ALL, 1)
 
         raise ParseError(f"(Level 2) Unexpected tag type: {child}")
 
 
-    def _wrap(self, children: list[dict], logic: str, n: int) -> dict:
+    @staticmethod
+    def _wrap(children: list[dict], logic: str, n: int) -> dict:
         """
         Wraps a list of children into an ANY/ALL node.
         Returns the single child directly if there is only one.
@@ -356,7 +361,8 @@ class PrereqParser:
         return {KEY_LOGIC: SELECT_ALL, KEY_CHILDREN: children}
 
 
-    def _parse_ul(self, ul: Tag, logic_override: str = SELECT_ALL, n_override: int = 1) -> dict:
+    @staticmethod
+    def _parse_ul(ul: Tag, logic_override: str = SELECT_ALL, n_override: int = 1) -> dict:
         """
         Level 1
         -------
@@ -381,7 +387,7 @@ class PrereqParser:
                 continue
 
             # Delegate parsing of child tags down the pipeline
-            node, child_logic, child_n = self._parse_child(child)
+            node, child_logic, child_n = PrereqParser._parse_child(child)
 
             if node is not None:
                 children.append(node)
@@ -391,11 +397,12 @@ class PrereqParser:
                 logic = SELECT_ANY_N
                 n     = child_n
 
-        return self._wrap(children, logic, n)
+        return PrereqParser._wrap(children, logic, n)
 
 
     # ----- Public Method --------------------
-    def parse(self, html: str) -> dict:
+    @staticmethod
+    def parse(html: str) -> dict:
         """
         Parses raw prereq HTML into a nested prereq tree dict.
 
@@ -430,6 +437,6 @@ class PrereqParser:
             raise ParseError(f"Expected outer <ul> tag")
 
         try:
-            return self._parse_ul(outer_ul)
+            return PrereqParser._parse_ul(outer_ul)
         except Exception as e:
             raise ParseError(f"{e}; for HTML: {html}") from e
