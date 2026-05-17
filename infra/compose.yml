@@ -1,0 +1,18 @@
+services:
+  apis:
+    build:
+      context: ../
+      dockerfile: infra/docker/apis.Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    restart: unless-stopped
+
+  scrapers:
+    build:
+      context: ../
+      dockerfile: infra/docker/scrapers.Dockerfile
+    env_file:
+      - ../.env
+    restart: no
