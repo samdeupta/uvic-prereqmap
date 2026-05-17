@@ -1,0 +1,580 @@
+from __future__ import annotations
+
+import pytest
+from pathlib import Path
+
+from src.prereq_parser import (
+    PrereqParser, 
+    SELECT_ALL, 
+    SELECT_ANY_N, 
+    TYPE_COURSE, 
+    TYPE_TEXT, 
+    TYPE_UNITS_FROM
+)
+from shared.errors import ParseError
+
+
+# ----- Helper Method to Load Sample Data --------------------
+def _load_sample_lines() -> list[str] | None:
+    path = Path("prereq_html_samples.txt")
+    
+    if path.exists():
+        with open(path, encoding="utf-8") as f:
+            return [line.strip() for line in f if line.strip()]
+    
+    return None
+
+
+# ----- 1. Invalid Input Handling Tests --------------------
+class TestPrereqParserInvalidInput:
+    """Parser must raise `ParseError` (never return silently) for any invalid input."""
+
+    # ----- Input: Empty/blank strings --------------------
+    def test_empty_string(self):
+        with pytest.raises(ParseError):
+            PrereqParser.parse("")
+
+
+    def test_single_space(self):
+        with pytest.raises(ParseError):
+            PrereqParser.parse(" ")
+
+
+    def test_multiple_spaces(self):
+        with pytest.raises(ParseError):
+            PrereqParser.parse("     ")
+
+
+    def test_tab_only(self):
+        with pytest.raises(ParseError):
+            PrereqParser.parse("\t")
+
+
+    def test_newline_only(self):
+        with pytest.raises(ParseError):
+            PrereqParser.parse("\n")
+
+
+    def test_mixed_whitespace(self):
+        with pytest.raises(ParseError):
+            PrereqParser.parse("  \t\n  \r\n  ")
+
+
+    # ----- Input: None --------------------
+    def test_none_raises(self):
+        with pytest.raises(ParseError):
+            PrereqParser.parse(None)
+
+
+    # ----- Input: Invalid/malformed HTML (including those violating schema) --------------------
+    def test_plain_div_no_ul(self):
+        with pytest.raises(ParseError):
+            PrereqParser.parse("<div><p>No list here</p></div>")
+
+
+    def test_plain_text_no_tags(self):
+        with pytest.raises(ParseError):
+            PrereqParser.parse("Complete all of: CSC110")
+
+
+    def test_ul_but_no_ruleview_children(self):
+        """A `<ul>` with no wrapper children or inner `<li>` with a "data-test" attr raises `ParseError`."""
+
+        with pytest.raises(ParseError):
+            PrereqParser.parse("<div><div><div><ul></ul></div></div></div>")
+
+
+    def test_result_div_missing(self):
+        """A `<li>` with `"data-test"` attr whose inner result div is absent raises `ParseError`."""
+
+        with pytest.raises(ParseError):
+            PrereqParser.parse(
+                '<div><div><div><ul>'
+                '<li data-test="ruleView-A"></li>'
+                '</ul></div></div></div>'
+            )
+
+
+# ----- 2. Leaf Node Structure Verification Tests --------------------
+class TestPrereqParserLeafNodes:
+    """
+    Each test targets one specific input pattern using a real HTML snippet from `prereq_html_samples.txt`. 
+    The expected output was produced by running `PrereqParser.parse()` and manually verified.
+    """
+
+    # ----- Type: Complete all of: [COURSES] --------------------
+    def test_all_of_single_course(self):
+        """
+        `"Complete all of: [COURSE]"` with one course -> ALL node with one course child.
+        Source: Line 5.
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result">Complete all of: '
+            '<div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/5f29c3f836d0ae0026b17a96" target="_blank">AE322</a>'
+            ' <!-- -->-<!-- --> <!-- -->Digital Arts<!-- --> <span style="margin-left:5px">(1.5)</span>'
+            '</span></li>'
+            '</ul></div>'
+            '</div></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "logic": SELECT_ALL,
+            "children": [{"type": TYPE_COURSE, "code": "AE322"}]
+        }
+
+
+    def test_all_of_multiple_courses(self):
+        """
+        `"Complete all of: [A, B, C]"` -> ALL node with three course children in order.
+        Source: Line 160.
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result">Complete all of: '
+            '<div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/66d2281c74171541059724aa" target="_blank">ASTR250</a>'
+            ' <!-- -->-<!-- --> <!-- -->Introduction to Astrophysics<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/672e74702494ee5aaeb60ea6" target="_blank">PHYS215</a>'
+            ' <!-- -->-<!-- --> <!-- -->Introductory Quantum Physics<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/672e72ab5d32637db2de8479" target="_blank">PHYS216</a>'
+            ' <!-- -->-<!-- --> <!-- -->Introductory Electricity and Magnetism<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div>'
+            '</div></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "logic": SELECT_ALL,
+            "children": [
+                {"type": TYPE_COURSE, "code": "ASTR250"},
+                {"type": TYPE_COURSE, "code": "PHYS215"},
+                {"type": TYPE_COURSE, "code": "PHYS216"}
+            ]
+        }
+
+
+    # ----- Type: Complete N of: [COURSES] --------------------
+    def test_any_1_of_2_courses(self):
+        """
+        `"Complete 1 of: [A, B]"` -> ANY (`n=1`) node with two course children.
+        Source: Line 1.
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result">Complete <span>1</span> of: '
+            '<div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/67ffff2c84f6076d6372d72a" target="_blank">ADMN311</a>'
+            ' <!-- -->-<!-- --> <!-- -->Introduction to Public Administration<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5f4d698c9c7aab0026994900" target="_blank">POLI350</a>'
+            ' <!-- -->-<!-- --> <!-- -->Introduction to Public Administration<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div>'
+            '</div></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "logic": SELECT_ANY_N,
+            "n": 1,
+            "children": [
+                {"type": TYPE_COURSE, "code": "ADMN311"},
+                {"type": TYPE_COURSE, "code": "POLI350"}
+            ]
+        }
+
+
+    def test_any_2_of_3_courses(self):
+        """
+        `"Complete 2 of: [A, B, C]"` -> ANY (`n=2`) node with `n` correctly set to `2`.
+        Source: Line 238.
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result">Complete <span>2</span> of: '
+            '<div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/5d1f6ea3d2bc1524008cb091" target="_blank">BIOL215</a>'
+            ' <!-- -->-<!-- --> <!-- -->Principles of Ecology<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5d1f70c9fb68f3240022d32c" target="_blank">BIOL225</a>'
+            ' <!-- -->-<!-- --> <!-- -->Principles of Cell Biology<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5d1f6f68fb68f3240022d231" target="_blank">BIOL230</a>'
+            ' <!-- -->-<!-- --> <!-- -->Principles of Genetics<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div>'
+            '</div></li>'
+            '</ul></div></div></div>'
+        )
+
+        result = PrereqParser.parse(html)
+
+        assert result["logic"] == SELECT_ANY_N
+        assert result["n"] == 2
+        assert len(result["children"]) == 3
+
+
+    # ----- Type: Plain text --------------------
+    def test_plain_text_node(self):
+        """
+        Result div containing only plain text -> BASE text node.
+        Source: Line 3.
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result"><div>Permission of the school.</div></div>'
+            '</li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "type": TYPE_TEXT,
+            "text": "Permission of the school."
+        }
+
+
+    # ----- Type: Concurrently enrolled (treated as prereq) --------------------
+    def test_concurrently_enrolled_treated_as_all(self):
+        """
+        `"Completed or concurrently enrolled in all of: [COURSE]"` -> ALL node with one course child.
+        Source: Line 991.
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result">'
+            'Completed or concurrently enrolled in all of: '
+            '<div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/66ccaa9cd876d2824c20f5a0" target="_blank">FRAN305</a>'
+            ' <!-- -->-<!-- --> <!-- -->Intermediate French Linguistics<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div>'
+            '</div></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "logic": SELECT_ALL,
+            "children": [{"type": TYPE_COURSE, "code": "FRAN305"}]
+        }
+    
+
+    # ----- Type: Complete N units from: [COURSES] --------------------
+    def test_units_from(self):
+        """
+        `"Complete N units from: [COURSES]"` -> BASE units_from node with float units and list of course 
+        codes.
+        Source: Line 2239.
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li><span>Complete <!-- -->all<!-- --> of the following</span><ul>'
+            '<li data-test="ruleView-C">'
+            '<div data-test="ruleView-C-result">Complete <span>3</span> units from: '
+            '<div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/5d1f71bd94e82e2400a236e5" target="_blank">WRIT303</a>'
+            ' <!-- -->-<!-- --> <!-- -->Poetry Workshop<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5d1f69d7d2bc1524008cace0" target="_blank">WRIT304</a>'
+            ' <!-- -->-<!-- --> <!-- -->Fiction Workshop<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5d1f682e89944f24002acd8e" target="_blank">WRIT305</a>'
+            ' <!-- -->-<!-- --> <!-- -->Playwriting Workshop<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5d1f682794e82e2400a22fe2" target="_blank">WRIT316</a>'
+            ' <!-- -->-<!-- --> <!-- -->Creative Nonfiction Workshop<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/63bf073f802d123791235b08" target="_blank">WRIT318</a>'
+            ' <!-- -->-<!-- --> <!-- -->Screenwriting Workshop<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5dd58afd125f762400db8da1" target="_blank">WRIT320</a>'
+            ' <!-- -->-<!-- --> <!-- -->Writing and Film Production Workshop<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div>'
+            '</div></li>'
+            '<li data-test="ruleView-B">'
+            '<div data-test="ruleView-B-result"><div>permission of the department.</div></div>'
+            '</li>'
+            '</ul></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "logic": SELECT_ALL,
+            "children": [
+                {
+                    "type": TYPE_UNITS_FROM,
+                    "units": 3.0,
+                    "courses": ["WRIT303", "WRIT304", "WRIT305", "WRIT316", "WRIT318", "WRIT320"]
+                },
+                {"type": TYPE_TEXT, "text": "permission of the department."}
+            ],
+        }
+
+
+# ----- 3. Complex/Composite Tree Structure Verification Tests --------------------
+class TestPrereqParserCompositeNodes:
+    """
+    Tests for the 2 structural patterns that combine multiple base nodes:
+    - Wrapper `<li>` with `"Complete all/N of the following"` span
+    - `<div>` with `<span class="rules_groupHeader_37">`
+    Both patterns can contain further nested nodes, producing a tree.
+    """
+
+    # ----- Wrapper <li>: Complete all of the following --------------------
+    def test_wrapper_li_all_of_following(self):
+        """
+        `"Complete all of the following"` wrapper containing an ANY (`n=1`) course rule and a plain 
+        text rule -> ALL node with two children: ANY node and BASE text node.
+        Source: Line 83.
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li><span>Complete <!-- -->all<!-- --> of the following</span>'
+            '<ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result">Complete <span>1</span> of: '
+            '<div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/6839d39dfab5d1d1354ed2fb" target="_blank">ANTH250</a>'
+            ' <!-- -->-<!-- --> <!-- -->Biological Anthropology<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/64c6ab1a9c2bcc8d794c5046" target="_blank">ANTH251</a>'
+            ' <!-- -->-<!-- --> <!-- -->Human Evolutionary Biology<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div>'
+            '</div></li>'
+            '<li data-test="ruleView-B">'
+            '<div data-test="ruleView-B-result"><div>Minimum third-year standing</div></div>'
+            '</li>'
+            '</ul></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "logic": SELECT_ALL,
+            "children": [
+                {
+                    "logic": SELECT_ANY_N,
+                    "n": 1,
+                    "children": [
+                        {"type": TYPE_COURSE, "code": "ANTH250"},
+                        {"type": TYPE_COURSE, "code": "ANTH251"}
+                    ]
+                },
+                {"type": TYPE_TEXT, "text": "Minimum third-year standing"}
+            ]
+        }
+
+
+    # ----- Wrapper <li>: Complete N of the following --------------------
+    def test_wrapper_li_any_1_of_following(self):
+        """
+        `"Complete 1 of the following"` wrapper containing an ALL course rule and a text rule -> 
+        ANY (`n=1`) node with two children: ALL node and BASE text node.
+        Source: Line 107.
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li><span>Complete <!-- -->1<!-- --> of the following</span>'
+            '<ul>'
+            '<li data-test="ruleView-C">'
+            '<div data-test="ruleView-C-result">Complete all of: '
+            '<div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/647e6d6f40cd47aa7e166dae" target="_blank">ANTH350</a>'
+            ' <!-- -->-<!-- --> <!-- -->Primate Behaviour and Conservation<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div>'
+            '</div></li>'
+            '<li data-test="ruleView-B">'
+            '<div data-test="ruleView-B-result"><div>Permission of the program</div></div>'
+            '</li>'
+            '</ul></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "logic": SELECT_ANY_N,
+            "n": 1,
+            "children": [
+                {
+                    "logic": SELECT_ALL,
+                    "children": [{"type": TYPE_COURSE, "code": "ANTH350"}]
+                },
+                {"type": TYPE_TEXT, "text": "Permission of the program"}
+            ]
+        }
+
+
+    # ----- <div> with <span class="rules_groupHeader_37"> --------------------
+    def test_group_header_div(self):
+        """
+        A `<div>` containing an empty `<span class="rules_groupHeader_37">` and a wrapper `<li>` forces
+        ANY (`n=1`) logic. The wrapper `<li>`'s children are themselves nested under another ANY (`n=1`).
+        Source: Line 1738.
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<div>'
+            '<span class="rules_groupHeader_37"></span>'
+            '<li><span>Complete <!-- -->1<!-- --> of the following</span>'
+            '<ul>'
+            '<li data-test="ruleView-D.1">'
+            '<div data-test="ruleView-D.1-result">Complete all of: '
+            '<div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/5d1f75bf94e82e2400a239c2" target="_blank">PHIL207A</a>'
+            ' <!-- -->-<!-- --> <!-- -->Introduction to Ancient Philosophy<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div>'
+            '</div></li>'
+            '<li data-test="ruleView-D.2">'
+            '<div data-test="ruleView-D.2-result"><div>4.5 units of PHIL courses</div></div>'
+            '</li>'
+            '</ul></li>'
+            '</div>'
+            '<li data-test="ruleView-B">'
+            '<div data-test="ruleView-B-result"><div>or permission of the department.</div></div>'
+            '</li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "logic": SELECT_ANY_N,
+            "n": 1,
+            "children": [
+                {
+                    "logic": SELECT_ANY_N,
+                    "n": 1,
+                    "children": [
+                        {
+                            "logic": SELECT_ALL,
+                            "children": [{"type": TYPE_COURSE, "code": "PHIL207A"}]
+                        },
+                        {"type": TYPE_TEXT, "text": "4.5 units of PHIL courses"}
+                    ]
+                },
+                {"type": TYPE_TEXT, "text": "or permission of the department."}
+            ]
+        }
+
+
+# ----- 4. Regression Tests on Real Sample Data --------------------
+class TestPrereqParserRealSamples:
+    """
+    Regression suite against all lines in `prereq_html_samples.txt`.
+
+    Each line is a real prereq HTML snippet from the UVic Kuali API.
+    These tests check that the parser returns valid-looking output and does not crash. It does not check 
+    the exact parsed result for every sample.
+
+    The fixture skips gracefully when the sample file is not present.
+    """
+
+    @pytest.fixture(scope="class")
+    def sample_lines(self):
+        lines = _load_sample_lines()
+
+        if lines is None:
+            pytest.skip("prereq_html_samples.txt not found")
+        
+        return lines
+
+
+    def test_no_parse_errors(self, sample_lines):
+        """Every sample must parse without raising any exception."""
+
+        errors = []
+
+        for i, html in enumerate(sample_lines):
+            try:
+                PrereqParser.parse(html)
+            except Exception as e:
+                errors.append(f"Line {i + 1}: {type(e).__name__}: {e}")
+        
+        assert not errors, (
+            f"{len(errors)} of {len(sample_lines)} samples raised errors:\n"
+            + "\n".join(errors[:10])
+        )
+
+
+    def test_all_results_are_dicts(self, sample_lines):
+        """Every parsed result must be a dict."""
+
+        for i, html in enumerate(sample_lines):
+            result = PrereqParser.parse(html)
+            assert isinstance(result, dict), f"Line {i + 1}: got {type(result).__name__}"
+
+
+    def test_all_results_have_logic_or_type(self, sample_lines):
+        """Top-level result must have either 'logic' (composite) or 'type' (leaf) key."""
+
+        for i, html in enumerate(sample_lines):
+            result = PrereqParser.parse(html)
+            assert "logic" in result or "type" in result, (
+                f"Line {i + 1}: result has neither 'logic' nor 'type': {result}"
+            )
+
+
+    def test_logic_nodes_have_non_empty_children(self, sample_lines):
+        """Any node with 'logic' must have a non-empty 'children' list (checked recursively)."""
+
+        def check(node: dict, line_num: int):
+            if "logic" in node:
+                assert isinstance(node.get("children"), list) and len(node["children"]) > 0, (
+                    f"Line {line_num}: logic node has empty or missing children: {node}"
+                )
+
+                for child in node["children"]:
+                    check(child, line_num)
+
+        for i, html in enumerate(sample_lines):
+            check(PrereqParser.parse(html), i + 1)
+
+
+    def test_any_nodes_have_positive_int_n(self, sample_lines):
+        """Every ANY node must have an integer `n>=1` (checked recursively)."""
+
+        def check(node: dict, line_num: int):
+            if node.get("logic") == SELECT_ANY_N:
+                n = node.get("n")
+
+                assert isinstance(n, int) and n >= 1, (
+                    f"Line {line_num}: ANY node has invalid n={n!r}"
+                )
+            
+            for child in node.get("children", []):
+                check(child, line_num)
+
+        for i, html in enumerate(sample_lines):
+            check(PrereqParser.parse(html), i + 1)
+
+
+    def test_course_nodes_have_non_empty_string_code(self, sample_lines):
+        """Every course leaf node must have a non-empty string `"code"` (checked recursively)."""
+
+        def check(node: dict, line_num: int):
+            if node.get("type") == TYPE_COURSE:
+                code = node.get("code")
+                assert isinstance(code, str) and code.strip(), (
+                    f"Line {line_num}: course node has invalid code={code!r}"
+                )
+
+            for child in node.get("children", []):
+                check(child, line_num)
+
+        for i, html in enumerate(sample_lines):
+            check(PrereqParser.parse(html), i + 1)
