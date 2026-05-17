@@ -9,23 +9,28 @@ from db.connection import db
 from routes import router as courses_router
 
 
-# ----- API Lifespan Handler --------------------
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Handles API startup and shutdown."""
+# ----- Course Info API --------------------
+class CourseInfoAPI:
+    @staticmethod
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+        """Handles API startup and shutdown."""
 
-    await db.init()
-    yield
-
-
-# ----- FastAPI App --------------------
-app = FastAPI(
-    title       = "UVic Course Info API",
-    description = "API for fetching UVic course and prerequisite data.",
-    version     = "1.0.0",
-    lifespan    = lifespan,
-)
+        await db.init()
+        yield
 
 
-# ----- API Router --------------------
-app.include_router(courses_router, prefix="/course-info-api")
+    @staticmethod
+    def create() -> FastAPI:
+        """Creates and configures the FastAPI app."""
+
+        app = FastAPI(
+            title       = "UVic Course Info API",
+            description = "API for fetching UVic course and prerequisite data.",
+            version     = "1.0.0",
+            lifespan    = CourseInfoAPI.lifespan,
+        )
+
+        app.include_router(courses_router, prefix="/course-info-api")
+
+        return app
