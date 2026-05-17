@@ -1,3 +1,5 @@
 beautifulsoup4
 urllib3
 SQLAlchemy
+requests
+asyncpg

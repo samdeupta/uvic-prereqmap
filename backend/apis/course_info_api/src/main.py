@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 
 from db.connection import db
-from routes import router as courses_router
+from src.routes import router as courses_router
 
 
 # ----- Course Info API --------------------
