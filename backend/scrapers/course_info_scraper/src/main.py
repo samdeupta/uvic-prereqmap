@@ -7,8 +7,8 @@ from sqlalchemy import delete
 from db.connection import db
 from db.schema import Course
 from shared.http_client import HTTPClient
-from src.fetcher import CourseInfoFetcher
-from src.prereq_parser import PrereqParser
+from .fetcher import CourseInfoFetcher
+from .prereq_parser import PrereqParser
 
 
 # ----- Helper Methods --------------------
@@ -47,7 +47,6 @@ class CourseInfoScraper:
             fetcher  = CourseInfoFetcher(client)
             courses  = fetcher.fetch_all_courses()
 
-        print(f"Fetched {len(courses)} courses.")
 
         await db.create_tables()
 

@@ -8,4 +8,4 @@ RUN pip install -r requirements.txt
 COPY backend/scrapers .
 COPY backend/db db
 
-CMD ["python", "run_all.py"]
+CMD ["python", "-u", "run_all.py"]

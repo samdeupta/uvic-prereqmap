@@ -175,13 +175,19 @@ class CourseInfoFetcher:
 
         courses = []
 
-        for entry in data:
+        print("Fetching course data from Kuali API...")
+
+        for i,entry in enumerate(data):
             code    = (entry.get("__catalogCourseId") or "").strip().upper()
             name    = (entry.get("title")             or "").strip()
             pid     = (entry.get("pid")               or "").strip()
 
             if not (code and name and pid):
                 continue
+
+            # Progress printout every 10 courses
+            if i % 10 == 0:
+                print(f"Scraped {i+1}/{len(data)} courses ({int((i+1)/len(data)*100)}%)")
 
             # Fetch course details
             credits, prereq_html, coreq_html, conflict_html = self._fetch_course_details(pid)
@@ -194,5 +200,7 @@ class CourseInfoFetcher:
                 coreq_html      = coreq_html, 
                 conflict_html   = conflict_html
             ))
+        
+        print(f"\nFetched {len(courses)} courses.\n")  # Newline after progress printout
 
         return courses
