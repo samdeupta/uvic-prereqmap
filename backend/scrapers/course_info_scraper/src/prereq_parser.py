@@ -217,26 +217,45 @@ def _build_ufs_node(units: float, text: str) -> dict:
     }
 
 
-def _is_units_from_subject(text: str) -> bool:
+def _is_units_from_subject(result_div: Tag) -> bool:
     """
-    Returns True if input string looks like a `units_from_subject` pattern.
+    Returns True if `result_div` should be parsed as a `units_from_subject` node.
 
-    Exclusions (return False):
-    - GPA / grade requirements: "minimum GPA of 5.0 in 3 units of ENGR courses"
-    - "X units of N-level courses with ...": "7.5 units of 200-level courses with any of the ECE..."
-
-    Inclusions (return True):
-    - Keyword-prefixed: "complete/minimum [of] X units ..."
-    - Bare: "X units of SUBJ courses"
-    - Composite: "COURSE and N units of SUBJ courses"
+    HTML patterns considered:
+    - Type 1: "Complete `<span>N</span>` units from `<span>SUBJECT_1</span>...` `<span>LO</span>` - `<span>HI</span>`"
+    - Type 2: "Complete `<span>N</span>` units of: `<div>X level SUBJECT</div>`"
+    - Type 3: "`COURSE` and `N` units of `SUBJECT` courses"
+    - Type 4: 
+        - "`N` units of `X`-level `SUBJECT` courses"
+        - "`N` units of `X`- or `Y`-level `SUBJECT` courses"
+        - "`N` units of `X` level `SUBJECT` courses"
+        - "Minimum `N` units of `SUBJECT` courses"
     """
 
+    raw       = str(result_div)
+    text      = result_div.get_text(separator=" ", strip=True)
+    inner_div = result_div.find("div")
+
+    # CASE: Type 1, Type 2
+    if _COMPLETE_N_UNITS_RE.search(raw):
+        # CASE: Type 1
+        if not inner_div:
+            return True
+        
+        # CASE: Type 2
+        inner_text = inner_div.get_text(strip=True)
+        return bool(_extract_subject_codes(inner_text) 
+                    or _parse_lvl_range(inner_text) != {"min": -1, "max": -1})
+
+    # CASE: Rejection from BASE units_from_subject
     if _UFS_EXCLUSION_RE.search(text):
         return False
-    
+
+    # CASE: Type 3
     if _UFS_COMPOSITE_RE.match(text.strip()):
         return True
-    
+
+    # DEFAULT CASE: Type 4
     return bool(re.search(
         r"(?:complete|minimum(?:\s+of)?|completed\s+a\s+minimum(?:\s+of)?)\s+[\d.]+\s+units"
         r"|[\d.]+\s+units\s+of",
@@ -244,102 +263,79 @@ def _is_units_from_subject(text: str) -> bool:
     ))
 
 
-def _parse_units_from_subject(text: str) -> dict:
+def _parse_units_from_subject(result_div: Tag) -> dict:
     """
-    Parses input string as a `units_from_subject` node.
-    Raises `ParseError` if the string cannot be parsed.
+    Parses a `units_from_subject` node from a result div.
+    Raises `ParseError` if the tag cannot be parsed.
+
+    HTML patterns handled:
+    - Type 1: "Complete `<span>X</span>` units from `<span>SUBJECT_1</span>...` `<span>LO</span>` - `<span>HI</span>`"
+    - Type 2: "Complete `<span>X</span>` units of: `<div>X level SUBJECT</div>`"
+    - Type 3: "`COURSE` and `X` units of `SUBJECT` courses"
+    - Type 4: 
+        - "`N` units of `X`-level `SUBJECT` courses"
+        - "`N` units of `X`- or `Y`-level `SUBJECT` courses"
+        - "`N` units of `X` level `SUBJECT` courses"
+        - "Minimum `N` units of `SUBJECT` courses"
     """
 
-    # CASE: Composite "COURSE and N units of SUBJECT courses" pattern
+    inner_div = result_div.find("div")
+    text      = result_div.get_text(separator=" ", strip=True)
+
+    # CASE: Type 1
+    if not inner_div and _COMPLETE_N_UNITS_RE.search(str(result_div)):
+        spans = [s.get_text(strip=True) for s in result_div.find_all("span")]
+
+        if len(spans) < 3:
+            raise ParseError(f"(Level 4) Expected at least 3 spans in units-from-range node: {result_div}")
+
+        try:
+            units = float(spans[0])
+        except ValueError:
+            raise ParseError(f"(Level 4) Expected float in first span of units-from-range node: {result_div}")
+
+        try:
+            lo = int(spans[-2])
+            hi = int(spans[-1])
+        except ValueError:
+            raise ParseError(f"(Level 4) Expected integers for LO and HI in: {result_div}")
+
+        return {
+            KEY_TYPE      : TYPE_UNITS_FROM_SUBJECT,
+            KEY_UNITS     : units,
+            KEY_SUBJECTS  : _extract_subject_codes(" ".join(spans[1:-2])),
+            KEY_LVL_RANGE : {"min": lo, "max": hi},
+        }
+
+    # CASE: Type 2
+    if inner_div and _COMPLETE_N_UNITS_RE.search(str(result_div)):
+        inner_text = inner_div.get_text(strip=True)
+        return _build_ufs_node(_get_span_float(result_div), inner_text)
+
+    # CASE: Type 3
     m = _UFS_COMPOSITE_RE.match(text.strip())
 
     if m:
-        raw_code  = re.sub(r"\s+", "", m.group(1)).upper()
-        ufs_text  = m.group(2)
-        units_m   = _UFS_UNITS_RE.search(ufs_text)
+        raw_code = re.sub(r"\s+", "", m.group(1)).upper()
+        ufs_text = m.group(2)
+        units_m  = _UFS_UNITS_RE.search(ufs_text)
 
         if not units_m:
             raise ParseError(f"(Level 4) Expected unit count in composite UFS text: {text!r}")
         
-        course_node = {KEY_TYPE: TYPE_COURSE, KEY_CODE: raw_code}
-        ufs_node    = _build_ufs_node(float(units_m.group(1)), ufs_text)
+        return {
+            KEY_LOGIC: SELECT_ALL, 
+            KEY_CHILDREN: [{KEY_TYPE: TYPE_COURSE, KEY_CODE: raw_code}, 
+                           _build_ufs_node(float(units_m.group(1)), ufs_text)]
+        }
 
-        return {KEY_LOGIC: SELECT_ALL, KEY_CHILDREN: [course_node, ufs_node]}
-
-    # CASE: Default UFS pattern
+    # DEFAULT CASE: Type 4
     m = _UFS_UNITS_RE.search(text)
 
     if not m:
         raise ParseError(f"(Level 4) Expected unit count in UFS text: {text!r}")
 
     return _build_ufs_node(float(m.group(1)), text)
-
-
-def _parse_units_from_subject_div(result_div: Tag) -> dict:
-    """
-    Parses structured HTML of the form:
-    `Complete <span>X</span> units of: <div>REQUIREMENTS_DESCRIPTION</div>`
-
-    Which when rendered looks like:
-    "Complete `X` units of: `REQUIREMENTS_DESCRIPTION`"
-
-    Raises `ParseError` if the inner `<div>` is missing.
-    """
-
-    units = _get_span_float(result_div)
-    inner_div = result_div.find("div")
-
-    if not inner_div:
-        raise ParseError(f"(Level 4) Expected inner <div> in units-of structured node: {result_div}")
-
-    return _build_ufs_node(units, inner_div.get_text(strip=True))
-
-
-def _parse_units_from_range(result_div: Tag) -> dict:
-    """
-    Parses structured HTML of the form:
-    `Complete <span>X</span> units from` `<span>SUBJECT_1</span>`... `<span>LO</span> - <span>HI</span>`
-
-    Which when rendered looks like:
-    "Complete `X` units from `SUBJECT_1, ...` `LO` - `HI`"
-
-    The numeric range `LO`-`HI` maps directly to `lvl_range` `{"min": LO, "max": HI}`.
-    Raises `ParseError` if the expected span structure is not found.
-    """
-
-    # Expects list of form: [UNITS, SUBJECT_1, ..., LO, HI]
-    spans = [s.get_text(strip=True) for s in result_div.find_all("span")]
-
-    # Expect at least: [UNITS, LO, HI]
-    if len(spans) < 3:
-        raise ParseError(f"(Level 4) Expected at least 3 spans in units-from-range node: {result_div}")
-
-    # Extract units value
-    try:
-        units = float(spans[0])
-    except ValueError:
-        raise ParseError(f"(Level 4) Expected float in first span of units-from-range node: {result_div}")
-
-    # Extract HI and LO values
-    hi = 0
-    lo = 0
-
-    try:
-        lo = int(spans[-2])
-        hi = int(spans[-1])
-    except ValueError:
-        raise ParseError(f"(Level 4) Expected integers for LO and HI in: {result_div}")
-
-    # Extract subject codes
-    subjects_raw = " ".join(spans[1:-2])
-    subjects = _extract_subject_codes(subjects_raw)
-
-    return {
-        KEY_TYPE      : TYPE_UNITS_FROM_SUBJECT,
-        KEY_UNITS     : units,
-        KEY_SUBJECTS  : subjects,
-        KEY_LVL_RANGE : {"min": lo, "max": hi},
-    }
 
 
 # ----- PrereqParser --------------------
@@ -395,41 +391,24 @@ class PrereqParser:
                 KEY_CHILDREN : [{KEY_TYPE: TYPE_COURSE, KEY_CODE: c} for c in codes],
             }
 
-        # CASE: BASE units_from_course / BASE units_from_subject
-        if _COMPLETE_N_UNITS_RE.search(raw):
-            # CASE: BASE units_from_course
-            if codes:
-                units = _get_span_float(result_div)
-                
-                return {
-                    KEY_TYPE    : TYPE_UNITS_FROM_COURSE,
-                    KEY_UNITS   : units,
-                    KEY_COURSES : codes,
-                }
+        # CASE: BASE units_from_course
+        if _COMPLETE_N_UNITS_RE.search(raw) and codes:
+            units = _get_span_float(result_div)
+            
+            return {
+                KEY_TYPE    : TYPE_UNITS_FROM_COURSE,
+                KEY_UNITS   : units,
+                KEY_COURSES : codes,
+            }
+        
+        # CASE: BASE units_from_subject
+        if _is_units_from_subject(result_div):
+            return _parse_units_from_subject(result_div)
 
-            # CASE: BASE units_from_subject
-            else:
-                
-                inner_div  = result_div.find("div")
-                inner_text = inner_div.get_text(strip=True) if inner_div else ""
-
-                if inner_div and (_extract_subject_codes(inner_text) or _parse_lvl_range(inner_text) != {"min": -1, "max": -1}):
-                    return _parse_units_from_subject_div(result_div)
-                
-                if not inner_div:
-                    return _parse_units_from_range(result_div)
-                
-                # CASE: Inner content is freeform (e.g. "an AWR-designated course")
-                return {KEY_TYPE: TYPE_TEXT, KEY_TEXT: text}
-
+        # DEFAULT CASE: BASE text node
         if not text:
             raise ParseError(f"(Level 4) Expected text for BASE text node in: {result_div}")
 
-        # CASE: BASE units_from_subject node
-        if _is_units_from_subject(text):
-            return _parse_units_from_subject(text)
-
-        # DEFAULT CASE: BASE text node
         return {KEY_TYPE: TYPE_TEXT, KEY_TEXT: text}
 
 
