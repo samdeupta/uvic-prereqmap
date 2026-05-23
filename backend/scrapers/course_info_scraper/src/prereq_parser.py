@@ -21,7 +21,7 @@ _WRAPPER_N_RE        = re.compile(r"Complete(\d+)of",                          r
 _COURSE_CODE_RE      = re.compile(r"^[A-Z]{2,4}-?[A-Z]?\d{3}[A-Z]?$")
 _SUBJECT_CODE_RE     = re.compile(r"\b[A-Z]{2,4}(?:-[A-Z])?\b")
 
-# Extracts the units for UFS (UNITS_FROM_SUBJECT) type
+# Extracts the units for UFS type
 _UFS_UNITS_RE        = re.compile(r"([\d.]+)\s+units",                         re.IGNORECASE)
 
 # Level range info patterns 
@@ -51,8 +51,8 @@ SELECT_ANY_N = "ANY"
 
 # Base node type values
 TYPE_COURSE              = "course"
-TYPE_UNITS_FROM_COURSE   = "units_from_course"
-TYPE_UNITS_FROM_SUBJECT  = "units_from_subject"
+TYPE_UNITS_FROM_COURSE   = "units_from_course"      # UFC
+TYPE_UNITS_FROM_SUBJECT  = "units_from_subject"     # UFS
 TYPE_TEXT                = "text"
 
 # Output dict keys
@@ -207,7 +207,7 @@ def _extract_subject_codes(text: str) -> list[str] | None:
 
 
 def _build_ufs_node(units: float, text: str) -> dict:
-    """Builds a `units_from_subject` node from a units count and constraints text."""
+    """Builds a UFS node from a units count and constraints text."""
 
     return {
         KEY_TYPE      : TYPE_UNITS_FROM_SUBJECT,
@@ -217,19 +217,19 @@ def _build_ufs_node(units: float, text: str) -> dict:
     }
 
 
-def _is_units_from_subject(result_div: Tag) -> bool:
+def _is_ufs(result_div: Tag) -> bool:
     """
-    Returns True if `result_div` should be parsed as a `units_from_subject` node.
+    Returns True if `result_div` should be parsed as a BASE_UFS node.
 
-    HTML patterns considered:
-    - Type 1: "Complete `<span>N</span>` units from `<span>SUBJECT_1</span>...` `<span>LO</span>` - `<span>HI</span>`"
-    - Type 2: "Complete `<span>N</span>` units of: `<div>X level SUBJECT</div>`"
+    Patterns considered:
+    - Type 1: "Complete `N` units from `[SUBJECTS]` `LO` - `HI`"
+    - Type 2: "Complete `N` units of: `X` level `SUBJECT`"
     - Type 3: "`COURSE` and `N` units of `SUBJECT` courses"
     - Type 4: 
-        - "`N` units of `X`-level `SUBJECT` courses"
-        - "`N` units of `X`- or `Y`-level `SUBJECT` courses"
-        - "`N` units of `X` level `SUBJECT` courses"
-        - "Minimum `N` units of `SUBJECT` courses"
+        - "`N` units of `X`-level [`SUBJECTS`] courses"
+        - "`N` units of `X`- or `Y`-level [`SUBJECTS`] courses"
+        - "`N` units of `X` level [`SUBJECTS`] courses"
+        - "Minimum `N` units of [`SUBJECTS`] courses"
     """
 
     raw       = str(result_div)
@@ -247,7 +247,7 @@ def _is_units_from_subject(result_div: Tag) -> bool:
         return bool(_extract_subject_codes(inner_text) 
                     or _parse_lvl_range(inner_text) != {"min": -1, "max": -1})
 
-    # CASE: Rejection from BASE units_from_subject
+    # CASE: Exclusion from BASE_UFS
     if _UFS_EXCLUSION_RE.search(text):
         return False
 
@@ -263,20 +263,20 @@ def _is_units_from_subject(result_div: Tag) -> bool:
     ))
 
 
-def _parse_units_from_subject(result_div: Tag) -> dict:
+def _parse_ufs(result_div: Tag) -> dict:
     """
-    Parses a `units_from_subject` node from a result div.
+    Parses a BASE_UFS node from a result div.
     Raises `ParseError` if the tag cannot be parsed.
 
-    HTML patterns handled:
-    - Type 1: "Complete `<span>X</span>` units from `<span>SUBJECT_1</span>...` `<span>LO</span>` - `<span>HI</span>`"
-    - Type 2: "Complete `<span>X</span>` units of: `<div>X level SUBJECT</div>`"
-    - Type 3: "`COURSE` and `X` units of `SUBJECT` courses"
+    Patterns handled:
+    - Type 1: "Complete `N` units from `[SUBJECTS]` `LO` - `HI`"
+    - Type 2: "Complete `N` units of: `X` level [`SUBJECTS`]"
+    - Type 3: "`COURSE` and `N` units of `SUBJECT` courses"
     - Type 4: 
-        - "`N` units of `X`-level `SUBJECT` courses"
-        - "`N` units of `X`- or `Y`-level `SUBJECT` courses"
-        - "`N` units of `X` level `SUBJECT` courses"
-        - "Minimum `N` units of `SUBJECT` courses"
+        - "`N` units of `X`-level [`SUBJECTS`] courses"
+        - "`N` units of `X`- or `Y`-level [`SUBJECTS`] courses"
+        - "`N` units of `X` level [`SUBJECTS`] courses"
+        - "Minimum `N` units of [`SUBJECTS`] courses"
     """
 
     inner_div = result_div.find("div")
@@ -351,25 +351,29 @@ class PrereqParser:
         node.
 
         Pattern to node type mapping:
-        - "Complete all of: [`COURSES`]"                          -> ALL node
-        - "Concurrently enrolled in: [`COURSES`]"                 -> ALL node
-        - "Complete N of: [`COURSES`]"                            -> ANY node
-        - "Complete X units from: [`COURSES`]"                    -> BASE units_from_course
-        - "Complete X units from SUBJ LO - HI"                    -> BASE units_from_subject
-        - "Complete X units of: <plain text>"                     -> BASE units_from_subject OR text
-        - "N units of [SUBJ] courses" / plain-text UFS forms      -> BASE units_from_subject
-        - "COURSE and N units of SUBJ courses"                    -> ALL [course, units_from_subject]
-        - Min grade / GPA / plain text                            -> BASE text
+        - "Complete all of: [`COURSES`]"                          -> ALL [COURSES]
+        - "Concurrently enrolled in: [`COURSES`]"                 -> ALL [COURSES]
+        - "Complete `N` of: [`COURSES`]"                          -> ANY [COURSES]
+        - "Complete `N` units from: [`COURSES`]"                  -> BASE_UFC
+        - "Complete `N` units from [`SUBJECTS`] `LO` - `HI`"      -> BASE_UFS
+        - "Complete `N` units of: `PLAIN_TEXT`"                   -> BASE_UFS or BASE_TEXT
+        - "`N` units of [`SUBJECTS`] courses"                     -> BASE_UFS
+        - "`N` units of `X`-level [`SUBJECTS`] courses"           -> BASE_UFS
+        - "`N` units of `X`- or `Y`-level [`SUBJECTS`] courses"   -> BASE_UFS
+        - "`N` units of `X` level [`SUBJECTS`] courses"           -> BASE_UFS
+        - "`COURSE` and `N` units of `SUBJECT` courses"           -> ALL [COURSE, BASE_UFS]
+        - Min grade / GPA / plain text                            -> BASE_TEXT
 
         Raises `ParseError` if `result_div` content does not match any of the defined patterns.
         """
 
         raw   = str(result_div)
         text  = result_div.get_text(separator=" ", strip=True)
-        codes = _extract_course_codes(result_div)
 
-        # CASE: ALL node
+        # CASE: ALL [COURSES]
         if _COMPLETE_ALL_OF_RE.search(raw) or _CONCURRENTLY_RE.search(raw):
+            codes = _extract_course_codes(result_div)
+
             if not codes:
                 return None     # Empty course list: Degenerate Kuali node, skip silently
             
@@ -378,9 +382,10 @@ class PrereqParser:
                 KEY_CHILDREN : [{KEY_TYPE: TYPE_COURSE, KEY_CODE: c} for c in codes],
             }
 
-        # CASE: ANY node
+        # CASE: ANY [COURSES]
         if _COMPLETE_N_OF_RE.search(raw):
             n = _get_span_int(result_div)
+            codes = _extract_course_codes(result_div)
 
             if not codes:
                 raise ParseError(f"(Level 4) Expected course codes for ANY node in: {result_div}")
@@ -391,21 +396,23 @@ class PrereqParser:
                 KEY_CHILDREN : [{KEY_TYPE: TYPE_COURSE, KEY_CODE: c} for c in codes],
             }
 
-        # CASE: BASE units_from_course
-        if _COMPLETE_N_UNITS_RE.search(raw) and codes:
+        # CASE: BASE_UFC
+        course_codes = _extract_course_codes(result_div)
+
+        if _COMPLETE_N_UNITS_RE.search(raw) and course_codes:
             units = _get_span_float(result_div)
             
             return {
                 KEY_TYPE    : TYPE_UNITS_FROM_COURSE,
                 KEY_UNITS   : units,
-                KEY_COURSES : codes,
+                KEY_COURSES : course_codes,
             }
         
-        # CASE: BASE units_from_subject
-        if _is_units_from_subject(result_div):
-            return _parse_units_from_subject(result_div)
+        # CASE: BASE_UFS
+        if _is_ufs(result_div):
+            return _parse_ufs(result_div)
 
-        # DEFAULT CASE: BASE text node
+        # DEFAULT CASE: BASE_TEXT
         if not text:
             raise ParseError(f"(Level 4) Expected text for BASE text node in: {result_div}")
 
