@@ -10,7 +10,7 @@ from src.prereq_parser import (
     TYPE_COURSE, 
     TYPE_TEXT, 
     TYPE_UNITS_FROM_COURSE,
-    TYPE_UNITS_FROM_SUBJECT,
+    TYPE_UNITS_FROM_SUBJECT
 )
 from shared.errors import ParseError
 
@@ -561,6 +561,52 @@ class TestPrereqParserLeafNodes:
             "units"     : 6.0,
             "subjects"  : ["BIOL", "EPHE", "MEDS"],
             "lvl_range" : {"min": 300, "max": 499},
+        }
+
+
+    def test_ufs_no_subject_codes_falls_through_to_text(self):
+        """
+        `"N units of X-level LONGNAME courses"` where `LONGNAME` is not a recognisable subject
+        code -> BASE_TEXT (cannot identify qualifying courses without a subject code).
+        Source: Line 150 (in original sample requirement needed for test is nested so it has been 
+        extracted to be tested in isolation).
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result"><div>9 units of 300-level Visual Arts courses</div></div>'
+            '</li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "type" : TYPE_TEXT,
+            "text" : "9 units of 300-level Visual Arts courses",
+        }
+
+
+    def test_ufs_bare_minimum_no_subject_no_level(self):
+        """
+        `"completed a minimum of N units"` with no subject and no level -> BASE_UFS,
+        `subjects=None`.
+        Source: Line 34 (in original sample the UFS requirement is nested so it has been 
+        extracted to be tested in isolation).
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result"><div>completed a minimum of 12 units</div></div>'
+            '</li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "type"      : TYPE_UNITS_FROM_SUBJECT,
+            "units"     : 12.0,
+            "subjects"  : None,
+            "lvl_range" : {"min": -1, "max": -1},
         }
 
 

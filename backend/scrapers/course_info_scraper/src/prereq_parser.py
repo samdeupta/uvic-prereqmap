@@ -230,6 +230,7 @@ def _is_ufs(result_div: Tag) -> bool:
         - "`N` units of `X`- or `Y`-level [`SUBJECTS`] courses"
         - "`N` units of `X` level [`SUBJECTS`] courses"
         - "Minimum `N` units of [`SUBJECTS`] courses"
+        - "complete a minimum `N` units"
     """
 
     raw       = str(result_div)
@@ -256,9 +257,20 @@ def _is_ufs(result_div: Tag) -> bool:
         return True
 
     # DEFAULT CASE: Type 4
-    return bool(re.search(
+    if not re.search(
         r"(?:complete|minimum(?:\s+of)?|completed\s+a\s+minimum(?:\s+of)?)\s+[\d.]+\s+units"
         r"|[\d.]+\s+units\s+of",
+        text, re.IGNORECASE
+    ):
+        return False
+
+    # Without subject codes, we can't identify qualifying courses, so fall through to text.
+    if _extract_subject_codes(text):
+        return True
+
+    # Allow bare "minimum N units" with no subject or level constraint
+    return bool(re.search(
+        r"(?:complete|minimum(?:\s+of)?|completed\s+a\s+minimum(?:\s+of)?)\s+[\d.]+\s+units\s*$",
         text, re.IGNORECASE
     ))
 
@@ -277,6 +289,7 @@ def _parse_ufs(result_div: Tag) -> dict:
         - "`N` units of `X`- or `Y`-level [`SUBJECTS`] courses"
         - "`N` units of `X` level [`SUBJECTS`] courses"
         - "Minimum `N` units of [`SUBJECTS`] courses"
+        - "complete a minimum `N` units"
     """
 
     inner_div = result_div.find("div")
