@@ -769,7 +769,7 @@ class TestPrereqParserRealSamples:
     """
 
     @pytest.fixture(scope="class")
-    def sample_lines(self):
+    def sample_lines(self) -> list[str]:
         """Returns a list of HTML samples."""
 
         path = Path(SAMPLE_FILENAME)
@@ -781,7 +781,7 @@ class TestPrereqParserRealSamples:
             return [line.strip() for line in f if line.strip()]
 
 
-    def test_no_parse_errors(self, sample_lines):
+    def test_no_parse_errors(self, sample_lines: list[str]):
         """Every sample must parse without raising any exception."""
 
         errors = []
@@ -798,7 +798,7 @@ class TestPrereqParserRealSamples:
         )
 
 
-    def test_all_results_are_dicts(self, sample_lines):
+    def test_all_results_are_dicts(self, sample_lines: list[str]):
         """Every parsed result must be a dict."""
 
         for i, html in enumerate(sample_lines):
@@ -806,7 +806,7 @@ class TestPrereqParserRealSamples:
             assert isinstance(result, dict), f"Line {i + 1}: got {type(result).__name__}"
 
 
-    def test_all_results_have_logic_or_type(self, sample_lines):
+    def test_all_results_have_logic_or_type(self, sample_lines: list[str]):
         """Top-level result must have either 'logic' (composite) or 'type' (leaf) key."""
 
         for i, html in enumerate(sample_lines):
@@ -816,7 +816,7 @@ class TestPrereqParserRealSamples:
             )
 
 
-    def test_logic_nodes_have_non_empty_children(self, sample_lines):
+    def test_logic_nodes_have_non_empty_children(self, sample_lines: list[str]):
         """Any node with 'logic' must have a non-empty 'children' list (checked recursively)."""
 
         def check(node: dict, line_num: int):
@@ -832,7 +832,7 @@ class TestPrereqParserRealSamples:
             check(PrereqParser.parse(html), i + 1)
 
 
-    def test_any_nodes_have_positive_int_n(self, sample_lines):
+    def test_any_nodes_have_positive_int_n(self, sample_lines: list[str]):
         """Every ANY node must have an integer `n>=1` (checked recursively)."""
 
         def check(node: dict, line_num: int):
@@ -850,7 +850,7 @@ class TestPrereqParserRealSamples:
             check(PrereqParser.parse(html), i + 1)
 
 
-    def test_course_nodes_have_non_empty_string_code(self, sample_lines):
+    def test_course_nodes_have_non_empty_string_code(self, sample_lines: list[str]):
         """Every course leaf node must have a non-empty string `"code"` (checked recursively)."""
 
         def check(node: dict, line_num: int):
@@ -867,7 +867,7 @@ class TestPrereqParserRealSamples:
             check(PrereqParser.parse(html), i + 1)
 
 
-    def test_ufs_nodes_have_required_keys(self, sample_lines):
+    def test_ufs_nodes_have_required_keys(self, sample_lines: list[str]):
         """
         Every BASE_UFS node must have `units` (float), `subjects` (list|None), and `lvl_range` 
         (dict with int `min` and `max`) (checked recursively).
