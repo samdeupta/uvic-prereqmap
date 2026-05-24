@@ -9,7 +9,8 @@ from src.prereq_parser import (
     SELECT_ANY_N, 
     TYPE_COURSE, 
     TYPE_TEXT, 
-    TYPE_UNITS_FROM
+    TYPE_UNITS_FROM_COURSE,
+    TYPE_UNITS_FROM_SUBJECT,
 )
 from shared.errors import ParseError
 
@@ -102,7 +103,7 @@ class TestPrereqParserLeafNodes:
     The expected output was produced by running `PrereqParser.parse()` and manually verified.
     """
 
-    # ----- Type: Complete all of: [COURSES] --------------------
+    # ----- Type: ALL [COURSES] --------------------
     def test_all_of_single_course(self):
         """
         `"Complete all of: [COURSE]"` with one course -> ALL node with one course child.
@@ -163,7 +164,7 @@ class TestPrereqParserLeafNodes:
         }
 
 
-    # ----- Type: Complete N of: [COURSES] --------------------
+    # ----- Type: ANY [COURSES] --------------------
     def test_any_1_of_2_courses(self):
         """
         `"Complete 1 of: [A, B]"` -> ANY (`n=1`) node with two course children.
@@ -228,7 +229,7 @@ class TestPrereqParserLeafNodes:
         assert len(result["children"]) == 3
 
 
-    # ----- Type: Plain text --------------------
+    # ----- Type: BASE_TEXT --------------------
     def test_plain_text_node(self):
         """
         Result div containing only plain text -> BASE text node.
@@ -249,7 +250,7 @@ class TestPrereqParserLeafNodes:
         }
 
 
-    # ----- Type: Concurrently enrolled (treated as prereq) --------------------
+    # ----- Type: Concurrently enrolled (treated as prereq ALL [COURSES]) --------------------
     def test_concurrently_enrolled_treated_as_all(self):
         """
         `"Completed or concurrently enrolled in all of: [COURSE]"` -> ALL node with one course child.
@@ -276,10 +277,10 @@ class TestPrereqParserLeafNodes:
         }
     
 
-    # ----- Type: Complete N units from: [COURSES] --------------------
+    # ----- Type: BASE_UFC --------------------
     def test_units_from(self):
         """
-        `"Complete N units from: [COURSES]"` -> BASE units_from node with float units and list of course 
+        `"Complete N units from: [COURSES]"` -> BASE_UFC node with float units and list of course 
         codes.
         Source: Line 2239.
         """
@@ -315,12 +316,81 @@ class TestPrereqParserLeafNodes:
             "logic": SELECT_ALL,
             "children": [
                 {
-                    "type": TYPE_UNITS_FROM,
+                    "type": TYPE_UNITS_FROM_COURSE,
                     "units": 3.0,
                     "courses": ["WRIT303", "WRIT304", "WRIT305", "WRIT316", "WRIT318", "WRIT320"]
                 },
                 {"type": TYPE_TEXT, "text": "permission of the department."}
             ],
+        }
+
+
+    # ----- Type: BASE_UFS --------------------
+    def test_ufs_minimum_no_subject(self):
+        """
+        `"Completed a minimum of N units"` -> BASE_UFS with `subjects=None`.
+        Source: Line 34 (in original sample the UFS requirement is deeply nested so it has been 
+        extracted to be tested in isolation).
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result"><div>completed a minimum of 12 units</div></div>'
+            '</li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "type"      : TYPE_UNITS_FROM_SUBJECT,
+            "units"     : 12.0,
+            "subjects"  : None,
+            "lvl_range" : {"min": -1, "max": -1},
+        }
+
+
+    def test_ufs_bare_subject_and_level(self):
+        """
+        `"N units of X-level SUBJECT courses."` -> BASE_UFS with subject and level.
+        Source: Line 140.
+        """
+ 
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result"><div>9 units of 200-level ART courses.</div></div>'
+            '</li>'
+            '</ul></div></div></div>'
+        )
+ 
+        assert PrereqParser.parse(html) == {
+            "type"      : TYPE_UNITS_FROM_SUBJECT,
+            "units"     : 9.0,
+            "subjects"  : ["ART"],
+            "lvl_range" : {"min": 200, "max": 299},
+        }
+
+
+    def test_ufs_minimum_with_subject_and_level(self):
+        """
+        `"Minimum N units of X-level SUBJECT_1 or SUBJECT_2 courses"` -> BASE_UFS.
+        Source: Line 8 (in original sample the UFS requirement is nested so it has been 
+        extracted to be tested in isolation).
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result"><div>Minimum 3 units of 300-level AHVS or HA courses</div></div>'
+            '</li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "type"      : TYPE_UNITS_FROM_SUBJECT,
+            "units"     : 3.0,
+            "subjects"  : ["AHVS", "HA"],
+            "lvl_range" : {"min": 300, "max": 399},
         }
 
 
@@ -464,7 +534,12 @@ class TestPrereqParserCompositeNodes:
                             "logic": SELECT_ALL,
                             "children": [{"type": TYPE_COURSE, "code": "PHIL207A"}]
                         },
-                        {"type": TYPE_TEXT, "text": "4.5 units of PHIL courses"}
+                        {
+                            "type": TYPE_UNITS_FROM_SUBJECT,
+                            "units": 4.5,
+                            "subjects": ["PHIL"],
+                            "lvl_range": {"min": -1, "max": -1}
+                        }
                     ]
                 },
                 {"type": TYPE_TEXT, "text": "or permission of the department."}
@@ -571,6 +646,41 @@ class TestPrereqParserRealSamples:
                 code = node.get("code")
                 assert isinstance(code, str) and code.strip(), (
                     f"Line {line_num}: course node has invalid code={code!r}"
+                )
+
+            for child in node.get("children", []):
+                check(child, line_num)
+
+        for i, html in enumerate(sample_lines):
+            check(PrereqParser.parse(html), i + 1)
+
+
+    def test_ufs_nodes_have_required_keys(self, sample_lines):
+        """
+        Every BASE_UFS node must have `units` (float), `subjects` (list|None), and `lvl_range` 
+        (dict with int `min` and `max`) (checked recursively).
+        """
+
+        def check(node: dict, line_num: int):
+            if node.get("type") == TYPE_UNITS_FROM_SUBJECT:
+                units = node.get("units")
+                assert isinstance(units, float) and units > 0, (
+                    f"Line {line_num}: UFS node has invalid units={units!r}"
+                )
+
+                subjects = node.get("subjects")
+                assert subjects is None or (isinstance(subjects, list) 
+                                            and all(isinstance(s, str) for s in subjects)), (
+                    f"Line {line_num}: UFS node has invalid subjects={subjects!r}"
+                )
+
+                lvl = node.get("lvl_range")
+                assert (
+                    isinstance(lvl, dict)
+                    and isinstance(lvl.get("min"), int)
+                    and isinstance(lvl.get("max"), int)
+                ), (
+                    f"Line {line_num}: UFS node has invalid lvl_range={lvl!r}"
                 )
 
             for child in node.get("children", []):
