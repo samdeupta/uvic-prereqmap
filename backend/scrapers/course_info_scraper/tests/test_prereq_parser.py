@@ -15,15 +15,8 @@ from src.prereq_parser import (
 from shared.errors import ParseError
 
 
-# ----- Helper Method to Load Sample Data --------------------
-def _load_sample_lines() -> list[str] | None:
-    path = Path("prereq_html_samples.txt")
-    
-    if path.exists():
-        with open(path, encoding="utf-8") as f:
-            return [line.strip() for line in f if line.strip()]
-    
-    return None
+# ----- Constants --------------------
+SAMPLE_FILENAME = "prereq_html_samples.txt"
 
 
 # ----- 1. Invalid Input Handling Tests --------------------
@@ -777,12 +770,15 @@ class TestPrereqParserRealSamples:
 
     @pytest.fixture(scope="class")
     def sample_lines(self):
-        lines = _load_sample_lines()
+        """Returns a list of HTML samples."""
 
-        if lines is None:
+        path = Path(SAMPLE_FILENAME)
+
+        if not path.exists():
             pytest.skip("prereq_html_samples.txt not found")
-        
-        return lines
+
+        with open(path, encoding="utf-8") as f:
+            return [line.strip() for line in f if line.strip()]
 
 
     def test_no_parse_errors(self, sample_lines):
