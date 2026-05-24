@@ -39,7 +39,7 @@ Each course's prerequisite data is returned by the Kuali API as raw React-render
 
 ### Input Patterns
 
-**6** distinct input patterns are present in the HTML. The first four are single-node patterns. The last two are structural patterns that combine multiple nodes into a tree.
+**10** distinct input patterns are present in the HTML. The first eight are single-node patterns (four of which are `BASE_UFS` sub-forms). The last two are structural patterns that combine multiple nodes into a tree.
 
 - **`Complete all of: [COURSES]`:**
     
@@ -52,6 +52,27 @@ Each course's prerequisite data is returned by the Kuali API as raw React-render
 - **`Complete N units from: [COURSES]`:**
     
     The student must complete at least `N` units drawn from the listed courses, where `N` is a float encoded in a `<span>` tag.
+
+- **`Complete N units from [SUBJECTS] LO - HI` (span range form):**
+    
+    The student must complete at least `N` units from courses in the given subjects within a numeric level range. The no. of units, subjects and hi-lo range bounds are each encoded in separate `<span>` tags (e.g. `Complete <span>3</span> units from <span>GEOG</span> <span>100</span> - <span>299</span>`).
+
+- **`Complete N units of: TEXT` (structured div form):**
+    
+    The student must complete at least `N` units of courses described by plain text. The `N` is encoded in a `<span>` and the `TEXT` is encoded in a `<div>`. If the inner text contains recognisable subject codes or level information (e.g. `"100 level MATH"`, `"STAT courses"`), it is parsed as a `BASE_UFS` node. If the content is freeform (e.g. `"an AWR-designated course"`), it is parsed as a `BASE_TEXT` node.
+
+- **Plain-text `UFS` forms:**
+
+    Unit requirements expressed entirely as plain text with no structured HTML has **5** sub-forms:
+    - `"N units of X level [SUBJECTS] courses"` / `"N units of X-level [SUBJECTS] courses"`
+    - `"N units of X- or Y-level [SUBJECTS] courses"`
+    - `"Complete N units of: X level [SUBJECTS]"`
+    - `"Minimum N units of [SUBJECTS] courses"`
+    - `"Minimum N units of [SUBJECTS] courses"`
+
+- **`COURSE and N units of SUBJECT courses` (composite form):**
+
+    A plain-text result div combining a single course requirement with a subject unit requirement. Parsed as an `ALL` node with two children: a `COURSE` node and a `BASE_UFS` node (e.g. `"PHIL 203 and 3 units of PHIL courses"`).
 
 - **Plain Text:**
 
@@ -94,9 +115,18 @@ Leaf nodes have a `"type"` key and no children.
 # A freeform text condition
 {"type": "text", "text": "Minimum third-year standing"}
 
-# A unit requirement drawn from a set of courses
-{"type": "units_from", "units": 3.0, "courses": ["WRIT303", "WRIT304", "WRIT305"]}
+# A unit requirement drawn from a specific set of linked courses
+{"type": "units_from_course", "units": 3.0, "courses": ["WRIT303", "WRIT304", "WRIT305"]}
+
+# A unit requirement from courses matching a subject/level description
+{"type": "units_from_subject", "units": 3.0, "subjects": ["AHVS", "HA"], "lvl_range": {"min": 300, "max": 399}}
 ```
+
+#### `UFS` Field Details
+
+- **`subjects`:** A list of subject codes, or `None` if there are no subject constraint (e.g `"Completed a minimum of 12 units"`).
+
+- **`lvl_range`:** A dict with integer `"min"` and `"max"` keys encoding the level constraint. A value of `-1` for a bound indicates that the corresponding side of the range is unbounded.
 
 ### Notes
 
