@@ -394,6 +394,176 @@ class TestPrereqParserLeafNodes:
         }
 
 
+    def test_ufs_span_range_single_subject(self):
+        """
+        `"Complete N units from [SUBJECTS] LO - HI"` -> BASE_UFS with subject and numeric lvl_range.
+        Source: Line 1203.
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result">'
+            'Complete <span>1.5</span> units from <span>HSTR</span> <span>100</span> - <span>299</span>'
+            '</div></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "type"      : TYPE_UNITS_FROM_SUBJECT,
+            "units"     : 1.5,
+            "subjects"  : ["HSTR"],
+            "lvl_range" : {"min": 100, "max": 299},
+        }
+
+
+    def test_ufs_span_range_multi_subject(self):
+        """
+        `"Complete N units from [SUBJECTS] LO - HI"` -> BASE_UFS with multiple subjects.
+        Source: Line 2064 (in original sample the UFS requirement is nested so it has been 
+        extracted to be tested in isolation).
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result">'
+            'Complete <span>1.5</span> units from <span>MATH</span> <span>or STAT</span> <span>100</span> - <span>499</span>'
+            '</div></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "type"      : TYPE_UNITS_FROM_SUBJECT,
+            "units"     : 1.5,
+            "subjects"  : ["MATH", "STAT"],
+            "lvl_range" : {"min": 100, "max": 499},
+        }
+
+
+    def test_ufs_structured_div_subject_only(self):
+        """
+        `"Complete N units of: [SUBJECTS] courses"` -> BASE_UFS, no level constraint.
+        Source: Line 1746 (in original sample the UFS requirement is deeply nested so it has been 
+        extracted to be tested in isolation).
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result">'
+            'Complete <span>4.5</span> units of: <div>PHIL courses</div>'
+            '</div></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "type"      : TYPE_UNITS_FROM_SUBJECT,
+            "units"     : 4.5,
+            "subjects"  : ["PHIL"],
+            "lvl_range" : {"min": -1, "max": -1},
+        }
+
+
+    def test_ufs_structured_div_no_hyphen_level(self):
+        """
+        `"Complete N units of: X level [SUBJECTS]"` -> BASE_UFS with no-hyphen level.
+        Source: Line 824 (in original sample the UFS requirement is nested so it has been 
+        extracted to be tested in isolation; the first UFS requirement is used).
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result">'
+            'Complete <span>1.5</span> units of: <div>100 level PHYS</div>'
+            '</div></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "type"      : TYPE_UNITS_FROM_SUBJECT,
+            "units"     : 1.5,
+            "subjects"  : ["PHYS"],
+            "lvl_range" : {"min": 100, "max": 199},
+        }
+
+
+    def test_ufs_composite_course_and_units(self):
+        """
+        `"COURSE and N units of SUBJECT courses"` -> ALL [COURSE, BASE_UFS].
+        Source: Line 1748 (in original sample the UFS requirement is nested so it has been 
+        extracted to be tested in isolation).
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result"><div>PHIL 203 and 3 units of PHIL courses</div></div>'
+            '</li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "logic"    : SELECT_ALL,
+            "children" : [
+                {"type": TYPE_COURSE, "code": "PHIL203"},
+                {
+                    "type"      : TYPE_UNITS_FROM_SUBJECT,
+                    "units"     : 3.0,
+                    "subjects"  : ["PHIL"],
+                    "lvl_range" : {"min": -1, "max": -1},
+                },
+            ],
+        }
+
+
+    def test_ufs_range_level(self):
+        """
+        `"N units of X- or Y-level [SUBJECTS] courses"` -> BASE_UFS with range lvl_range.
+        Source: Line 1144 (in original sample the UFS requirement is nested so it has been 
+        extracted to be tested in isolation; the second UFS requirement is used).
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result"><div>4.5 units of 300- or 400-level GNDR or WS courses</div></div>'
+            '</li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "type"      : TYPE_UNITS_FROM_SUBJECT,
+            "units"     : 4.5,
+            "subjects"  : ["GNDR", "WS"],
+            "lvl_range" : {"min": 300, "max": 499},
+        }
+
+
+    def test_ufs_comma_separated_subjects(self):
+        """
+        `"N units of X- or Y-level [SUBJECTS] courses"` -> BASE_UFS with comma subjects.
+        Source: Line 1552 (in original sample the UFS requirement is nested so it has been 
+        extracted to be tested in isolation; the first UFS requirement is used).
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-A">'
+            '<div data-test="ruleView-A-result"><div>6.0 units of 300- or 400-level BIOL, EPHE, or MEDS courses</div></div>'
+            '</li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser.parse(html) == {
+            "type"      : TYPE_UNITS_FROM_SUBJECT,
+            "units"     : 6.0,
+            "subjects"  : ["BIOL", "EPHE", "MEDS"],
+            "lvl_range" : {"min": 300, "max": 499},
+        }
+
+
 # ----- 3. Complex/Composite Tree Structure Verification Tests --------------------
 class TestPrereqParserCompositeNodes:
     """
