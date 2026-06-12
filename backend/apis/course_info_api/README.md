@@ -32,7 +32,7 @@ Returns all courses. Supports optional field selection and filtering.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `fields` | `string` | No | Comma-separated list of fields to return. Returns all fields if omitted |
-| `lvl` | `integer` | No | Filter by course level. e.g. `300` returns all 300-level courses |
+| `lvl` | `string` | No | Filter by course level. Accepts a single integer (e.g. `300`) or an inclusive `min-max` range (e.g. `200-399`) |
 | `subject` | `string` | No | Filter by subject code. Case-insensitive. e.g. `CSC` or `csc` |
 
 `lvl` and `subject` can be combined to filter by both simultaneously.
@@ -65,6 +65,22 @@ Returns all courses. Supports optional field selection and filtering.
 ```json
 {
     "detail": "Invalid field(s): foo. Valid fields are: code, credits, lvl, name, prereqs, subject."
+}
+```
+
+`400 Bad Request` — returned when the `lvl` parameter is not a valid integer or range.
+
+```json
+{
+    "detail": "Invalid lvl value 'abc': expected an integer (e.g. '300') or an inclusive range (e.g. '200-399')."
+}
+```
+
+`400 Bad Request` — returned when the `lvl` range has `min > max`.
+
+```json
+{
+    "detail": "Invalid lvl range '400-200': min (400) must not be greater than max (200)."
 }
 ```
 
