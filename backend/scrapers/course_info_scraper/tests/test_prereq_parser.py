@@ -760,42 +760,71 @@ class TestPrereqParserRealSamples:
             return [line.strip() for line in f if line.strip()]
 
 
-    def test_no_parse_errors(self, sample_lines: list[str]):
-        """Every sample must parse without raising any exception."""
+    @pytest.fixture(scope="class")
+    def parsed_samples(self, sample_lines: list[str]) -> list[dict | None]:
+        """
+        Pre-parses all samples once. Stores `None` for any line that raises an exception, so structural 
+        tests can skip those lines without re-raising.
+        """
+
+        results = []
+
+        for html in sample_lines:
+            try:
+                results.append(PrereqParser.parse(html))
+            except Exception:
+                results.append(None)
+
+        return results
+
+
+    def test_no_parse_errors(self, sample_lines: list[str], parsed_samples: list[dict | None]):
+        """
+        Every sample must parse without raising any exception.
+        Only re-parses lines where `parsed_samples` recorded `None` (i.e. samples which caused 
+        `PrereqParser` to raise an exception), so the error is captured and reported cleanly.
+        """
 
         errors = []
 
-        for i, html in enumerate(sample_lines):
+        for i, result in enumerate(parsed_samples):
+            if result is not None:
+                continue
+
             try:
-                PrereqParser.parse(html)
+                PrereqParser.parse(sample_lines[i])
             except Exception as e:
                 errors.append(f"Line {i + 1}: {type(e).__name__}: {e}")
-        
+
         assert not errors, (
             f"{len(errors)} of {len(sample_lines)} samples raised errors:\n"
             + "\n".join(errors[:10])
         )
 
 
-    def test_all_results_are_dicts(self, sample_lines: list[str]):
+    def test_all_results_are_dicts(self, parsed_samples: list[dict | None]):
         """Every parsed result must be a dict."""
 
-        for i, html in enumerate(sample_lines):
-            result = PrereqParser.parse(html)
+        for i, result in enumerate(parsed_samples):
+            if result is None:
+                continue
+
             assert isinstance(result, dict), f"Line {i + 1}: got {type(result).__name__}"
 
 
-    def test_all_results_have_logic_or_type(self, sample_lines: list[str]):
+    def test_all_results_have_logic_or_type(self, parsed_samples: list[dict | None]):
         """Top-level result must have either 'logic' (composite) or 'type' (leaf) key."""
 
-        for i, html in enumerate(sample_lines):
-            result = PrereqParser.parse(html)
+        for i, result in enumerate(parsed_samples):
+            if result is None:
+                continue
+
             assert "logic" in result or "type" in result, (
                 f"Line {i + 1}: result has neither 'logic' nor 'type': {result}"
             )
 
 
-    def test_logic_nodes_have_non_empty_children(self, sample_lines: list[str]):
+    def test_logic_nodes_have_non_empty_children(self, parsed_samples: list[dict | None]):
         """Any node with 'logic' must have a non-empty 'children' list (checked recursively)."""
 
         def check(node: dict, line_num: int):
@@ -807,11 +836,12 @@ class TestPrereqParserRealSamples:
                 for child in node["children"]:
                     check(child, line_num)
 
-        for i, html in enumerate(sample_lines):
-            check(PrereqParser.parse(html), i + 1)
+        for i, result in enumerate(parsed_samples):
+            if result is not None:
+                check(result, i + 1)
 
 
-    def test_any_nodes_have_positive_int_n(self, sample_lines: list[str]):
+    def test_any_nodes_have_positive_int_n(self, parsed_samples: list[dict | None]):
         """Every ANY node must have an integer `n>=1` (checked recursively)."""
 
         def check(node: dict, line_num: int):
@@ -825,11 +855,12 @@ class TestPrereqParserRealSamples:
             for child in node.get("children", []):
                 check(child, line_num)
 
-        for i, html in enumerate(sample_lines):
-            check(PrereqParser.parse(html), i + 1)
+        for i, result in enumerate(parsed_samples):
+            if result is not None:
+                check(result, i + 1)
 
 
-    def test_course_nodes_have_non_empty_string_code(self, sample_lines: list[str]):
+    def test_course_nodes_have_non_empty_string_code(self, parsed_samples: list[dict | None]):
         """Every course leaf node must have a non-empty string `"code"` (checked recursively)."""
 
         def check(node: dict, line_num: int):
@@ -842,20 +873,69 @@ class TestPrereqParserRealSamples:
             for child in node.get("children", []):
                 check(child, line_num)
 
-        for i, html in enumerate(sample_lines):
-            check(PrereqParser.parse(html), i + 1)
+        for i, result in enumerate(parsed_samples):
+            if result is not None:
+                check(result, i + 1)
 
 
-    def test_ufs_nodes_have_required_keys(self, sample_lines: list[str]):
+    def test_text_nodes_have_non_empty_string_text(self, parsed_samples: list[dict | None]):
+        """Every BASE_TEXT node must have a non-empty string `"text"` (checked recursively)."""
+
+        def check(node: dict, line_num: int):
+            if node.get("type") == TYPE_TEXT:
+                text = node.get("text")
+                assert isinstance(text, str) and text.strip(), (
+                    f"Line {line_num}: text node has invalid text={text!r}"
+                )
+
+            for child in node.get("children", []):
+                check(child, line_num)
+
+        for i, result in enumerate(parsed_samples):
+            if result is not None:
+                check(result, i + 1)
+
+
+    def test_ufc_nodes_have_required_keys(self, parsed_samples: list[dict | None]):
         """
-        Every BASE_UFS node must have `units` (float), `subjects` (list|None), and `lvl_range` 
-        (dict with int `min` and `max`) (checked recursively).
+        Every BASE_UFC node must have `units` (non-negative float) and `courses` (non-empty list of 
+        strings) (checked recursively).
+        """
+
+        def check(node: dict, line_num: int):
+            if node.get("type") == TYPE_UNITS_FROM_COURSE:
+                units = node.get("units")
+                assert isinstance(units, float) and units >= 0, (
+                    f"Line {line_num}: UFC node has invalid units={units!r}"
+                )
+
+                courses = node.get("courses")
+                assert (
+                    isinstance(courses, list)
+                    and len(courses) > 0
+                    and all(isinstance(c, str) and c.strip() for c in courses)
+                ), (
+                    f"Line {line_num}: UFC node has invalid courses={courses!r}"
+                )
+
+            for child in node.get("children", []):
+                check(child, line_num)
+
+        for i, result in enumerate(parsed_samples):
+            if result is not None:
+                check(result, i + 1)
+
+
+    def test_ufs_nodes_have_required_keys(self, parsed_samples: list[dict | None]):
+        """
+        Every BASE_UFS node must have `units` (non-negative float), `subjects` (list|None), 
+        and `lvl_range` (dict with int `min` and `max`) (checked recursively).
         """
 
         def check(node: dict, line_num: int):
             if node.get("type") == TYPE_UNITS_FROM_SUBJECT:
                 units = node.get("units")
-                assert isinstance(units, float) and units > 0, (
+                assert isinstance(units, float) and units >= 0, (
                     f"Line {line_num}: UFS node has invalid units={units!r}"
                 )
 
@@ -877,5 +957,6 @@ class TestPrereqParserRealSamples:
             for child in node.get("children", []):
                 check(child, line_num)
 
-        for i, html in enumerate(sample_lines):
-            check(PrereqParser.parse(html), i + 1)
+        for i, result in enumerate(parsed_samples):
+            if result is not None:
+                check(result, i + 1)

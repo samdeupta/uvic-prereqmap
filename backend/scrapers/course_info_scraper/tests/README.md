@@ -73,7 +73,7 @@ Verifies the two structural patterns that produce composite trees by combining m
 
 ## Section 4 — `TestPrereqParserRealSamples`
 
-Regression suite executed against all 2,253 samples in `prereq_html_samples.txt`. The purpose is breadth coverage across the full diversity of real-world inputs, not exact output verification. All **7** tests share a single class-scoped fixture that loads the file once. The fixture skips gracefully if `prereq_html_samples.txt` is not present.
+Regression suite executed against all 2,253 samples in `prereq_html_samples.txt`. The purpose is breadth coverage across the full diversity of real-world inputs, not exact output verification. All **9** tests share a single class-scoped fixture that loads the file once. The fixture skips gracefully if `prereq_html_samples.txt` is not present.
 
 | Test | Assertion |
 |---|---|
@@ -83,7 +83,9 @@ Regression suite executed against all 2,253 samples in `prereq_html_samples.txt`
 | `test_logic_nodes_have_non_empty_children` | Every node with `"logic"` has a non-empty `"children"` list, checked recursively |
 | `test_any_nodes_have_positive_int_n` | Every `ANY` node has an integer `n >= 1`, checked recursively |
 | `test_course_nodes_have_non_empty_string_code` | Every course node has a non-empty string `"code"`, checked recursively |
-| `test_ufs_nodes_have_required_keys` | Every `BASE_UFS` node has a positive float `"units"`, a `"subjects"` value that is `None` or a list of strings, and a `"lvl_range"` dict with integer `"min"` and `"max"`, checked recursively |
+| `test_text_nodes_have_non_empty_string_text` | Every `BASE_TEXT` node has a non-empty string `"text"`, checked recursively |
+| `test_ufc_nodes_have_required_keys` | Every `BASE_UFC` node has a non-negative float `"units"` and a non-empty list of strings `"courses"`, checked recursively |
+| `test_ufs_nodes_have_required_keys` | Every `BASE_UFS` node has a non-negative float `"units"`, a `"subjects"` value that is `None` or a list of strings, and a `"lvl_range"` dict with integer `"min"` and `"max"`, checked recursively |
 
 ---
 
