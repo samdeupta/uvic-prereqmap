@@ -28,7 +28,7 @@ The 3 subcategories are tested:
 
 ## Section 2 — `TestPrereqParserLeafNodes`
 
-Verifies that each distinct input pattern produces the correct output. Each test uses a verbatim HTML fixture from `prereq_html_samples.txt` and asserts an exact expected dict. The exception is `test_any_2_of_3_courses`, which uses a partial assert on `logic`, `n`, and `len(children)`, as the property under test is that `n` is extracted correctly, not the identity of the courses.
+Verifies that each distinct input pattern produces the correct output. Each test uses a verbatim HTML fixture from `prereq_html_samples.txt` (or an isolated result div constructed from inner content found there) and asserts an exact expected dict. The exception is `test_any_2_of_3_courses`, which uses a partial assert on `logic`, `n`, and `len(children)`, as the property under test is that `n` is extracted correctly, not the identity of the courses.
 
 | Test | Input pattern | Source line |
 |---|---|---|
@@ -39,8 +39,24 @@ Verifies that each distinct input pattern produces the correct output. Each test
 | `test_plain_text_node` | Result div containing plain text only | 3 |
 | `test_concurrently_enrolled_treated_as_all` | `Completed or concurrently enrolled in all of: [course]` | 991 |
 | `test_units_from` | `Complete N units from: [courses]` | 2239 |
+| `test_ufs_minimum_no_subject` | `Completed a minimum of N units` | 34 (isolated) |
+| `test_ufs_bare_subject_and_level` | `N units of X-level SUBJECT courses` | 140 |
+| `test_ufs_minimum_with_subject_and_level` | `Minimum N units of X-level SUBJECT_1 or SUBJECT_2 courses` | 8 (isolated) |
+| `test_ufs_span_range_single_subject` | `Complete N units from SUBJECT LO - HI` | 1203 |
+| `test_ufs_span_range_multi_subject` | `Complete N units from SUBJECT_1 or SUBJECT_2 LO - HI` | 2064 (isolated) |
+| `test_ufs_structured_div_subject_only` | `Complete N units of: <div>SUBJECT courses</div>` | 1746 (isolated) |
+| `test_ufs_structured_div_no_hyphen_level` | `Complete N units of: <div>X level SUBJECT</div>` | 824 (isolated) |
+| `test_ufs_composite_course_and_units` | `COURSE and N units of SUBJECT courses` | 1748 (isolated) |
+| `test_ufs_range_level` | `N units of X- or Y-level SUBJECT_1 or SUBJECT_2 courses` | 1144 (isolated) |
+| `test_ufs_comma_separated_subjects` | `N units of X- or Y-level SUBJECT_1, SUBJECT_2, or SUBJECT_3 courses` | 1552 (isolated) |
+| `test_ufs_no_subject_codes_falls_through_to_text` | `N units of X-level LONGNAME courses` -- `LONGNAME` refers to the full name of the subject referenced by a subject code | 150 (isolated) |
+| `test_ufs_bare_minimum_no_subject_no_level` | `completed a minimum of N units` | 34 (isolated) |
 
-**Note:** the `units_from` case (line 2239) does not appear as an isolated top-level node in the sample data. It always occurs nested inside a wrapper, so the fixture asserts the full enclosing `ALL` node, of which the `units_from` node is a child.
+**Notes:**
+- The `units_from_course` case (line 2239) does not appear as an isolated top-level node in the sample data. It always occurs nested inside a wrapper, so the fixture asserts the full enclosing `ALL` node, of which the `units_from_course` node is a child.
+- Tests marked *"isolated"* use inner HTML content from the given sample line wrapped in a minimal scaffold, since the UFS requirement in the original sample is nested inside a larger tree.
+- `test_ufs_no_subject_codes_falls_through_to_text` verifies that plain-text unit requirements where no subject code can be extracted (e.g. `"9 units of 300-level Visual Arts courses"`) fall through to a `BASE_TEXT` node rather than producing a `BASE_UFS` node with `subjects=None`.
+- `test_ufs_minimum_no_subject` and `test_ufs_bare_minimum_no_subject_no_level` both use the same source line (34) but target slightly different phrasings of the bare minimum form.
 
 ---
 
@@ -52,13 +68,13 @@ Verifies the two structural patterns that produce composite trees by combining m
 
 - **`test_wrapper_li_any_1_of_following` (line 107):** The same wrapper pattern but with an integer `N` in the span, producing an `ANY (n=N)` node. The fixture contains an `ALL` course rule and a plain text rule as children, verifying that `n` is extracted from the span and that child parsing is recursive.
 
-- **`test_group_header_div` (line 1738):** A `<div>` containing a `<span class="rules_groupHeader_37">` forces `ANY (n=1)` logic on the enclosing `<ul>`. The fixture represents the deepest nesting in the sample data: the groupHeader div wraps a wrapper `<li>` which itself contains an `ALL` node and a text node, producing a two-level `ANY (n=1) -> ANY (n=1) -> [ALL([COURSE]), text]` tree alongside a sibling text node at the outer level.
+- **`test_group_header_div` (line 1738):** A `<div>` containing a `<span class="rules_groupHeader_37">` forces `ANY (n=1)` logic on the enclosing `<ul>`. The fixture represents the deepest nesting in the sample data: the groupHeader div wraps a wrapper `<li>` which itself contains an `ALL` node and a `BASE_UFS` node, producing a two-level `ANY (n=1) -> ANY (n=1) -> [ALL [COURSE], BASE_UFS]` tree alongside a sibling text node at the outer level.
 
 ---
 
 ## Section 4 — `TestPrereqParserRealSamples`
 
-Regression suite executed against all 2,253 lines in `prereq_html_samples.txt`. The purpose is breadth coverage across the full diversity of real-world inputs, not exact output verification. All six tests share a single class-scoped fixture that loads the file once. The fixture skips gracefully if `prereq_html_samples.txt` is not present.
+Regression suite executed against all 2,253 lines in `prereq_html_samples.txt`. The purpose is breadth coverage across the full diversity of real-world inputs, not exact output verification. All **7** tests share a single class-scoped fixture that loads the file once. The fixture skips gracefully if `prereq_html_samples.txt` is not present.
 
 | Test | Assertion |
 |---|---|
@@ -68,6 +84,7 @@ Regression suite executed against all 2,253 lines in `prereq_html_samples.txt`. 
 | `test_logic_nodes_have_non_empty_children` | Every node with `"logic"` has a non-empty `"children"` list, checked recursively |
 | `test_any_nodes_have_positive_int_n` | Every `ANY` node has an integer `n >= 1`, checked recursively |
 | `test_course_nodes_have_non_empty_string_code` | Every course node has a non-empty string `"code"`, checked recursively |
+| `test_ufs_nodes_have_required_keys` | Every `BASE_UFS` node has a positive float `"units"`, a `"subjects"` value that is `None` or a list of strings, and a `"lvl_range"` dict with integer `"min"` and `"max"`, checked recursively |
 
 ---
 

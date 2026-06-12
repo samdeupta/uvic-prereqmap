@@ -63,12 +63,15 @@ Each course's prerequisite data is returned by the Kuali API as raw React-render
 
 - **Plain-text `UFS` forms:**
 
-    Unit requirements expressed entirely as plain text with no structured HTML has **5** sub-forms:
+    Unit requirements expressed entirely as plain text with no structured HTML has **6** sub-forms:
     - `"N units of X level [SUBJECTS] courses"` / `"N units of X-level [SUBJECTS] courses"`
     - `"N units of X- or Y-level [SUBJECTS] courses"`
     - `"Complete N units of: X level [SUBJECTS]"`
     - `"Minimum N units of [SUBJECTS] courses"`
     - `"Minimum N units of [SUBJECTS] courses"`
+    - `"complete a minimum N units"`
+
+    If text is technically a `UFS` type but no recognisable subject codes can be extracted (e.g. `"9 units of 300-level Visual Arts courses"`), the node falls through to `BASE_TEXT` instead.
 
 - **`COURSE and N units of SUBJECT courses` (composite form):**
 
@@ -127,6 +130,16 @@ Leaf nodes have a `"type"` key and no children.
 - **`subjects`:** A list of subject codes, or `None` if there are no subject constraint (e.g `"Completed a minimum of 12 units"`).
 
 - **`lvl_range`:** A dict with integer `"min"` and `"max"` keys encoding the level constraint. A value of `-1` for a bound indicates that the corresponding side of the range is unbounded.
+
+    | `lvl_range` | Meaning | Example source text |
+    |---|---|---|
+    | `{"min": -1, "max": -1}` | No level constraint | `"4.5 units of PHIL courses"` |
+    | `{"min": 300, "max": 399}` | Strict single level (300-level only) | `"Minimum 3 units of 300-level AHVS courses"` |
+    | `{"min": 300, "max": 499}` | Level range (300- or 400-level) | `"3 units of 300- or 400-level PHIL courses"` |
+    | `{"min": 300, "max": -1}` | Open upper bound (300 and above) | `"Minimum 3 units of 300- courses"` |
+    | `{"min": 100, "max": 299}` | Numeric range from span form | `"Complete 3 units from GEOG 100 - 299"` |
+
+    The convention for strict single levels is `max = min + 99` (e.g. 300-level -> `{"min": 300, "max": 399}`). For ranges expressed as `"300- or 400-level"`, `max` is the upper level's base plus 99 (e.g. `{"min": 300, "max": 499}`). For the numeric span form (`Complete N units from SUBJ LO - HI`), `min` and `max` are taken directly from the span values.
 
 ### Notes
 
