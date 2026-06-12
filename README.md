@@ -8,14 +8,15 @@ The goal is to make course planning easier by turning nested prerequisite requir
 
 ## Current Status
 
-This project is currently in early development.
+The backend is feature-complete for data acquisition and serving. A frontend has not yet been started.
 
-The repository currently contains backend work including:
+The repository currently contains:
 
-- Course information API structure
-- Database connection and schema files
-- Course information scraping modules
-- Environment configuration examples
+- **Course Info Scraper** — a full scraping pipeline that fetches all UVic course data from the Kuali API, parses prerequisite HTML into a structured tree, and writes everything to a PostgreSQL database in a single atomic transaction
+- **Prerequisite Parser** — a recursive HTML parser handling 10 distinct prerequisite input patterns from the Kuali API, with a comprehensive unit and regression test suite (2,253 real samples)
+- **Course Info API** — a read-only FastAPI service exposing course and prerequisite data with filtering by subject and level
+- **Database layer** — PostgreSQL schema and async SQLAlchemy connection management
+- **Docker / Compose setup** — separate Dockerfiles and a Compose file for the API service and scraper
 
 ---
 
@@ -44,12 +45,15 @@ UVic PrereqMap aims to simplify this process by representing prerequisite chains
 uvic-prereqmap/
 ├── backend/
 │   ├── apis/
+│   │   └── course_info_api/
 │   ├── db/
 │   ├── scrapers/
-│   ├── .env.example
+│   │   └── course_info_scraper/
 │   └── .gitignore
-├── frontend/
 ├── infra/
+│   └── docker/
+├── .env.example
+├── .gitignore
 └── README.md
 ```
 
@@ -57,7 +61,25 @@ uvic-prereqmap/
 
 ## Tech Stack
 
-- Python
-- PostgreSQL
+- **Python** — scraper, parser, and API
+- **FastAPI** — Course Info API
+- **PostgreSQL** — course and prerequisite storage
+- **SQLAlchemy (async)** — database access layer
+- **BeautifulSoup4** — prerequisite HTML parsing
+- **Docker / Docker Compose** — containerised deployment
 
-Additional technologies will be added as development continues.
+---
+
+## Running Locally
+
+Copy `.env.example` to `.env` and fill in your database credentials, then:
+
+```bash
+# Start the API server
+docker compose -f infra/compose.yml up apis
+
+# Run the scraper (one-shot)
+docker compose -f infra/compose.yml run scrapers
+```
+
+The API will be available at `http://localhost:8000`. See `backend/apis/course_info_api/README.md` for full endpoint documentation.
