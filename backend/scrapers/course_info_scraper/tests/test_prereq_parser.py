@@ -271,16 +271,15 @@ class TestPrereqParserLeafNodes:
     
 
     # ----- Type: BASE_UFC --------------------
-    def test_units_from(self):
+    def test_ufc(self):
         """
         `"Complete N units from: [COURSES]"` -> BASE_UFC node with float units and list of course 
         codes.
-        Source: Line 2239.
+        Source: Line 2239 (isolated).
         """
 
         html = (
             '<div><div><div><ul>'
-            '<li><span>Complete <!-- -->all<!-- --> of the following</span><ul>'
             '<li data-test="ruleView-C">'
             '<div data-test="ruleView-C-result">Complete <span>3</span> units from: '
             '<div><ul style="margin-top:5px;margin-bottom:5px">'
@@ -298,23 +297,13 @@ class TestPrereqParserLeafNodes:
             ' <!-- -->-<!-- --> <!-- -->Writing and Film Production Workshop<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
             '</ul></div>'
             '</div></li>'
-            '<li data-test="ruleView-B">'
-            '<div data-test="ruleView-B-result"><div>permission of the department.</div></div>'
-            '</li>'
-            '</ul></li>'
             '</ul></div></div></div>'
         )
 
         assert PrereqParser.parse(html) == {
-            "logic": SELECT_ALL,
-            "children": [
-                {
-                    "type": TYPE_UNITS_FROM_COURSE,
-                    "units": 3.0,
-                    "courses": ["WRIT303", "WRIT304", "WRIT305", "WRIT316", "WRIT318", "WRIT320"]
-                },
-                {"type": TYPE_TEXT, "text": "permission of the department."}
-            ],
+            "type"    : TYPE_UNITS_FROM_COURSE,
+            "units"   : 3.0,
+            "courses" : ["WRIT303", "WRIT304", "WRIT305", "WRIT316", "WRIT318", "WRIT320"],
         }
 
 
@@ -322,8 +311,7 @@ class TestPrereqParserLeafNodes:
     def test_ufs_minimum_no_subject(self):
         """
         `"Completed a minimum of N units"` -> BASE_UFS with `subjects=None`.
-        Source: Line 34 (in original sample the UFS requirement is deeply nested so it has been 
-        extracted to be tested in isolation).
+        Source: Line 34 (isolated).
         """
 
         html = (
@@ -367,8 +355,7 @@ class TestPrereqParserLeafNodes:
     def test_ufs_minimum_with_subject_and_level(self):
         """
         `"Minimum N units of X-level SUBJECT_1 or SUBJECT_2 courses"` -> BASE_UFS.
-        Source: Line 8 (in original sample the UFS requirement is nested so it has been 
-        extracted to be tested in isolation).
+        Source: Line 8 (isolated).
         """
 
         html = (
@@ -413,8 +400,7 @@ class TestPrereqParserLeafNodes:
     def test_ufs_span_range_multi_subject(self):
         """
         `"Complete N units from [SUBJECTS] LO - HI"` -> BASE_UFS with multiple subjects.
-        Source: Line 2064 (in original sample the UFS requirement is nested so it has been 
-        extracted to be tested in isolation).
+        Source: Line 2064 (isolated).
         """
 
         html = (
@@ -437,8 +423,7 @@ class TestPrereqParserLeafNodes:
     def test_ufs_structured_div_subject_only(self):
         """
         `"Complete N units of: [SUBJECTS] courses"` -> BASE_UFS, no level constraint.
-        Source: Line 1746 (in original sample the UFS requirement is deeply nested so it has been 
-        extracted to be tested in isolation).
+        Source: Line 1746 (isolated).
         """
 
         html = (
@@ -461,8 +446,7 @@ class TestPrereqParserLeafNodes:
     def test_ufs_structured_div_no_hyphen_level(self):
         """
         `"Complete N units of: X level [SUBJECTS]"` -> BASE_UFS with no-hyphen level.
-        Source: Line 824 (in original sample the UFS requirement is nested so it has been 
-        extracted to be tested in isolation; the first UFS requirement is used).
+        Source: Line 824 (isolated).
         """
 
         html = (
@@ -485,8 +469,7 @@ class TestPrereqParserLeafNodes:
     def test_ufs_composite_course_and_units(self):
         """
         `"COURSE and N units of SUBJECT courses"` -> ALL [COURSE, BASE_UFS].
-        Source: Line 1748 (in original sample the UFS requirement is nested so it has been 
-        extracted to be tested in isolation).
+        Source: Line 1748 (isolated).
         """
 
         html = (
@@ -514,8 +497,7 @@ class TestPrereqParserLeafNodes:
     def test_ufs_range_level(self):
         """
         `"N units of X- or Y-level [SUBJECTS] courses"` -> BASE_UFS with range lvl_range.
-        Source: Line 1144 (in original sample the UFS requirement is nested so it has been 
-        extracted to be tested in isolation; the second UFS requirement is used).
+        Source: Line 1144 (isolated).
         """
 
         html = (
@@ -537,8 +519,7 @@ class TestPrereqParserLeafNodes:
     def test_ufs_comma_separated_subjects(self):
         """
         `"N units of X- or Y-level [SUBJECTS] courses"` -> BASE_UFS with comma subjects.
-        Source: Line 1552 (in original sample the UFS requirement is nested so it has been 
-        extracted to be tested in isolation; the first UFS requirement is used).
+        Source: Line 1552 (isolated).
         """
 
         html = (
@@ -559,10 +540,9 @@ class TestPrereqParserLeafNodes:
 
     def test_ufs_no_subject_codes_falls_through_to_text(self):
         """
-        `"N units of X-level LONGNAME courses"` where `LONGNAME` is not a recognisable subject
-        code -> BASE_TEXT (cannot identify qualifying courses without a subject code).
-        Source: Line 150 (in original sample requirement needed for test is nested so it has been 
-        extracted to be tested in isolation).
+        `"N units of X-level LONGNAME courses"` where `LONGNAME` is the full name of a subject -> BASE_TEXT 
+        (cannot identify qualifying courses without a subject code).
+        Source: Line 150 (isolated).
         """
 
         html = (
@@ -583,8 +563,7 @@ class TestPrereqParserLeafNodes:
         """
         `"completed a minimum of N units"` with no subject and no level -> BASE_UFS,
         `subjects=None`.
-        Source: Line 34 (in original sample the UFS requirement is nested so it has been 
-        extracted to be tested in isolation).
+        Source: Line 34 (isolated).
         """
 
         html = (

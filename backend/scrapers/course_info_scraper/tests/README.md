@@ -38,7 +38,7 @@ Verifies that each distinct input pattern produces the correct output. Each test
 | `test_any_2_of_3_courses` | `Complete 2 of: [3 courses]` | 238 |
 | `test_plain_text_node` | Result div containing plain text only | 3 |
 | `test_concurrently_enrolled_treated_as_all` | `Completed or concurrently enrolled in all of: [course]` | 991 |
-| `test_units_from` | `Complete N units from: [courses]` | 2239 |
+| `test_ufc` | `Complete N units from: [courses]` | 2239 (isolated) |
 | `test_ufs_minimum_no_subject` | `Completed a minimum of N units` | 34 (isolated) |
 | `test_ufs_bare_subject_and_level` | `N units of X-level SUBJECT courses` | 140 |
 | `test_ufs_minimum_with_subject_and_level` | `Minimum N units of X-level SUBJECT_1 or SUBJECT_2 courses` | 8 (isolated) |
@@ -53,7 +53,6 @@ Verifies that each distinct input pattern produces the correct output. Each test
 | `test_ufs_bare_minimum_no_subject_no_level` | `completed a minimum of N units` | 34 (isolated) |
 
 **Notes:**
-- The `units_from_course` case (line 2239) does not appear as an isolated top-level node in the sample data. It always occurs nested inside a wrapper, so the fixture asserts the full enclosing `ALL` node, of which the `units_from_course` node is a child.
 - Tests marked *"isolated"* use inner HTML content from the given sample line wrapped in a minimal scaffold, since the UFS requirement in the original sample is nested inside a larger tree.
 - `test_ufs_no_subject_codes_falls_through_to_text` verifies that plain-text unit requirements where no subject code can be extracted (e.g. `"9 units of 300-level Visual Arts courses"`) fall through to a `BASE_TEXT` node rather than producing a `BASE_UFS` node with `subjects=None`.
 - `test_ufs_minimum_no_subject` and `test_ufs_bare_minimum_no_subject_no_level` both use the same source line (34) but target slightly different phrasings of the bare minimum form.
@@ -74,7 +73,7 @@ Verifies the two structural patterns that produce composite trees by combining m
 
 ## Section 4 — `TestPrereqParserRealSamples`
 
-Regression suite executed against all 2,253 lines in `prereq_html_samples.txt`. The purpose is breadth coverage across the full diversity of real-world inputs, not exact output verification. All **7** tests share a single class-scoped fixture that loads the file once. The fixture skips gracefully if `prereq_html_samples.txt` is not present.
+Regression suite executed against all 2,253 samples in `prereq_html_samples.txt`. The purpose is breadth coverage across the full diversity of real-world inputs, not exact output verification. All **7** tests share a single class-scoped fixture that loads the file once. The fixture skips gracefully if `prereq_html_samples.txt` is not present.
 
 | Test | Assertion |
 |---|---|
