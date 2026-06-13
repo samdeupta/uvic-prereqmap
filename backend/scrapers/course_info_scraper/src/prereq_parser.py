@@ -7,11 +7,16 @@ from shared.errors import ParseError
 
 
 # ----- Regexes --------------------
-# To search against raw HTML
+# To search against raw HTML (prereq patterns)
 _COMPLETE_ALL_OF_RE  = re.compile(r"Complete\s+all\s+of\s*:",                  re.IGNORECASE)
 _COMPLETE_N_OF_RE    = re.compile(r"Complete\s+<span>\d+</span>\s+of\s*:",     re.IGNORECASE)
 _COMPLETE_N_UNITS_RE = re.compile(r"Complete\s+<span>[\d.]+</span>\s+units",   re.IGNORECASE)
-_CONCURRENTLY_RE     = re.compile(r"concurrently\s+enrolled",                  re.IGNORECASE)
+
+# To search against raw HTML (coreq patterns)
+_CONCURRENT_ALL_OF_RE   = re.compile(r"concurrently\s+enrolled\s+in\s+all\s+of:\s*",
+                                     re.IGNORECASE)
+_CONCURRENT_N_OF_RE     = re.compile(r"concurrently\s+enrolled\s+in\s+<span>\d+</span>\s+of\s*:",
+                                     re.IGNORECASE)
 
 # To search against compressed <span> text with whitespace and comment artifacts removed
 _WRAPPER_ALL_RE      = re.compile(r"Completeallof",                            re.IGNORECASE)
@@ -364,7 +369,8 @@ class PrereqParser:
 
         Pattern to node type mapping:
         - "Complete all of: [`COURSES`]"                          -> ALL [COURSES]
-        - "Concurrently enrolled in: [`COURSES`]"                 -> ALL [COURSES]
+        - "`...` concurrently enrolled in all of: [`COURSES`]"    -> ALL [COURSES]
+        - "`...` concurrently enrolled in `N` of: [`COURSES`]"    -> ANY [COURSES]
         - "Complete `N` of: [`COURSES`]"                          -> ANY [COURSES]
         - "Complete `N` units from: [`COURSES`]"                  -> BASE_UFC
         - "Complete `N` units from [`SUBJECTS`] `LO` - `HI`"      -> BASE_UFS
@@ -383,7 +389,7 @@ class PrereqParser:
         text  = result_div.get_text(separator=" ", strip=True)
 
         # CASE: ALL [COURSES]
-        if _COMPLETE_ALL_OF_RE.search(raw) or _CONCURRENTLY_RE.search(raw):
+        if _COMPLETE_ALL_OF_RE.search(raw) or _CONCURRENT_ALL_OF_RE.search(raw):
             codes = _extract_course_codes(result_div)
             
             return {
@@ -392,7 +398,7 @@ class PrereqParser:
             }
 
         # CASE: ANY [COURSES]
-        if _COMPLETE_N_OF_RE.search(raw):
+        if _COMPLETE_N_OF_RE.search(raw) or _CONCURRENT_N_OF_RE.search(raw):
             n = _get_span_int(result_div)
             codes = _extract_course_codes(result_div)
 
