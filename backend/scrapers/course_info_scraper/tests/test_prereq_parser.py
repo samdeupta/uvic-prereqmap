@@ -243,8 +243,8 @@ class TestPrereqParserLeafNodes:
         }
 
 
-    # ----- Type: Concurrently enrolled (treated as prereq ALL [COURSES]) --------------------
-    def test_concurrently_enrolled_treated_as_all(self):
+    # ----- Type: Concurrently enrolled --------------------
+    def test_concurrently_enrolled_in_all_of_treated_as_all(self):
         """
         `"Completed or concurrently enrolled in all of: [COURSE]"` -> ALL node with one course child.
         Source: Line 991.
@@ -268,7 +268,41 @@ class TestPrereqParserLeafNodes:
             "logic": SELECT_ALL,
             "children": [{"type": TYPE_COURSE, "code": "FRAN305"}]
         }
-    
+
+
+    def test_concurrently_enrolled_in_n_of_treated_as_any(self):
+        """
+        `"Completed or concurrently enrolled in 1 of: [A, B]"` -> ANY (`n=1`) node with two course 
+        children.
+        Source: Line 214 (isolated).
+        """
+
+        html = (
+            '<div><div><div><ul>'
+            '<li data-test="ruleView-B.2">'
+            '<div data-test="ruleView-B.2-result">'
+            'Completed or concurrently enrolled in <span>1</span> of: '
+            '<div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/5d1f6e32d2bc1524008cb046" target="_blank">BIOC300A</a>'
+            ' <!-- -->-<!-- --> <!-- -->General Biochemistry I<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5d1f7523d2bc1524008cb555" target="_blank">BIOC300B</a>'
+            ' <!-- -->-<!-- --> <!-- -->General Biochemistry II<!-- -->'
+            ' <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div>'
+            '</div></li>'
+            '</ul></div></div></div>'
+        )
+
+        assert PrereqParser().parse(html) == {
+            "logic"    : SELECT_ANY_N,
+            "n"        : 1,
+            "children" : [
+                {"type": TYPE_COURSE, "code": "BIOC300A"},
+                {"type": TYPE_COURSE, "code": "BIOC300B"},
+            ]
+        }
+
 
     # ----- Type: BASE_UFC --------------------
     def test_ufc(self):
