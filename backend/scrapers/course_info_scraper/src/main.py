@@ -58,11 +58,13 @@ class CourseInfoScraper:
                 print("Truncated existing data.")
 
                 # Insert new course data
+                parser = PrereqParser()
+
                 for course in courses:
                     prereqs = None
 
                     if course.prereq_html:
-                        prereqs = PrereqParser.parse(course.prereq_html)
+                        prereqs = parser.parse(course.prereq_html)
 
                     session.add(Course(
                         code    = course.code,

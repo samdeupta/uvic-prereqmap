@@ -26,63 +26,63 @@ class TestPrereqParserInvalidInput:
     # ----- Input: Empty/blank strings --------------------
     def test_empty_string(self):
         with pytest.raises(ParseError):
-            PrereqParser.parse("")
+            PrereqParser().parse("")
 
 
     def test_single_space(self):
         with pytest.raises(ParseError):
-            PrereqParser.parse(" ")
+            PrereqParser().parse(" ")
 
 
     def test_multiple_spaces(self):
         with pytest.raises(ParseError):
-            PrereqParser.parse("     ")
+            PrereqParser().parse("     ")
 
 
     def test_tab_only(self):
         with pytest.raises(ParseError):
-            PrereqParser.parse("\t")
+            PrereqParser().parse("\t")
 
 
     def test_newline_only(self):
         with pytest.raises(ParseError):
-            PrereqParser.parse("\n")
+            PrereqParser().parse("\n")
 
 
     def test_mixed_whitespace(self):
         with pytest.raises(ParseError):
-            PrereqParser.parse("  \t\n  \r\n  ")
+            PrereqParser().parse("  \t\n  \r\n  ")
 
 
     # ----- Input: None --------------------
     def test_none_raises(self):
         with pytest.raises(ParseError):
-            PrereqParser.parse(None)
+            PrereqParser().parse(None)
 
 
     # ----- Input: Invalid/malformed HTML (including those violating schema) --------------------
     def test_plain_div_no_ul(self):
         with pytest.raises(ParseError):
-            PrereqParser.parse("<div><p>No list here</p></div>")
+            PrereqParser().parse("<div><p>No list here</p></div>")
 
 
     def test_plain_text_no_tags(self):
         with pytest.raises(ParseError):
-            PrereqParser.parse("Complete all of: CSC110")
+            PrereqParser().parse("Complete all of: CSC110")
 
 
     def test_ul_but_no_ruleview_children(self):
         """A `<ul>` with no wrapper children or inner `<li>` with a "data-test" attr raises `ParseError`."""
 
         with pytest.raises(ParseError):
-            PrereqParser.parse("<div><div><div><ul></ul></div></div></div>")
+            PrereqParser().parse("<div><div><div><ul></ul></div></div></div>")
 
 
     def test_result_div_missing(self):
         """A `<li>` with `"data-test"` attr whose inner result div is absent raises `ParseError`."""
 
         with pytest.raises(ParseError):
-            PrereqParser.parse(
+            PrereqParser().parse(
                 '<div><div><div><ul>'
                 '<li data-test="ruleView-A"></li>'
                 '</ul></div></div></div>'
@@ -93,7 +93,7 @@ class TestPrereqParserInvalidInput:
 class TestPrereqParserLeafNodes:
     """
     Each test targets one specific input pattern using a real HTML snippet from `prereq_html_samples.txt`. 
-    The expected output was produced by running `PrereqParser.parse()` and manually verified.
+    The expected output was produced by running `PrereqParser().parse()` and manually verified.
     """
 
     # ----- Type: ALL [COURSES] --------------------
@@ -116,7 +116,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "logic": SELECT_ALL,
             "children": [{"type": TYPE_COURSE, "code": "AE322"}]
         }
@@ -147,7 +147,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "logic": SELECT_ALL,
             "children": [
                 {"type": TYPE_COURSE, "code": "ASTR250"},
@@ -180,7 +180,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "logic": SELECT_ANY_N,
             "n": 1,
             "children": [
@@ -215,7 +215,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        result = PrereqParser.parse(html)
+        result = PrereqParser().parse(html)
 
         assert result["logic"] == SELECT_ANY_N
         assert result["n"] == 2
@@ -237,7 +237,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type": TYPE_TEXT,
             "text": "Permission of the school."
         }
@@ -264,7 +264,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "logic": SELECT_ALL,
             "children": [{"type": TYPE_COURSE, "code": "FRAN305"}]
         }
@@ -300,7 +300,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type"    : TYPE_UNITS_FROM_COURSE,
             "units"   : 3.0,
             "courses" : ["WRIT303", "WRIT304", "WRIT305", "WRIT316", "WRIT318", "WRIT320"],
@@ -322,7 +322,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 12.0,
             "subjects"  : None,
@@ -344,7 +344,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
  
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 9.0,
             "subjects"  : ["ART"],
@@ -366,7 +366,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 3.0,
             "subjects"  : ["AHVS", "HA"],
@@ -389,7 +389,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 1.5,
             "subjects"  : ["HSTR"],
@@ -412,7 +412,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 1.5,
             "subjects"  : ["MATH", "STAT"],
@@ -435,7 +435,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 4.5,
             "subjects"  : ["PHIL"],
@@ -458,7 +458,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 1.5,
             "subjects"  : ["PHYS"],
@@ -480,7 +480,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "logic"    : SELECT_ALL,
             "children" : [
                 {"type": TYPE_COURSE, "code": "PHIL203"},
@@ -508,7 +508,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 4.5,
             "subjects"  : ["GNDR", "WS"],
@@ -530,7 +530,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 6.0,
             "subjects"  : ["BIOL", "EPHE", "MEDS"],
@@ -553,7 +553,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type" : TYPE_TEXT,
             "text" : "9 units of 300-level Visual Arts courses",
         }
@@ -574,7 +574,7 @@ class TestPrereqParserLeafNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 12.0,
             "subjects"  : None,
@@ -621,7 +621,7 @@ class TestPrereqParserCompositeNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "logic": SELECT_ALL,
             "children": [
                 {
@@ -664,7 +664,7 @@ class TestPrereqParserCompositeNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "logic": SELECT_ANY_N,
             "n": 1,
             "children": [
@@ -710,7 +710,7 @@ class TestPrereqParserCompositeNodes:
             '</ul></div></div></div>'
         )
 
-        assert PrereqParser.parse(html) == {
+        assert PrereqParser().parse(html) == {
             "logic": SELECT_ANY_N,
             "n": 1,
             "children": [
@@ -771,7 +771,7 @@ class TestPrereqParserRealSamples:
 
         for html in sample_lines:
             try:
-                results.append(PrereqParser.parse(html))
+                results.append(PrereqParser().parse(html))
             except Exception:
                 results.append(None)
 
@@ -792,7 +792,7 @@ class TestPrereqParserRealSamples:
                 continue
 
             try:
-                PrereqParser.parse(sample_lines[i])
+                PrereqParser().parse(sample_lines[i])
             except Exception as e:
                 errors.append(f"Line {i + 1}: {type(e).__name__}: {e}")
 
