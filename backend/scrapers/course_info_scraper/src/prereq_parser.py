@@ -354,7 +354,7 @@ def _parse_ufs(result_div: Tag) -> dict:
 # ----- PrereqParser --------------------
 class PrereqParser:
     # ----- Private Methods --------------------
-    def _parse_result_div(self, result_div: Tag) -> dict | None:
+    def _parse_result_div(self, result_div: Tag) -> dict:
         """
         Level 4: Base Case
         ------------------
@@ -385,9 +385,6 @@ class PrereqParser:
         # CASE: ALL [COURSES]
         if _COMPLETE_ALL_OF_RE.search(raw) or _CONCURRENTLY_RE.search(raw):
             codes = _extract_course_codes(result_div)
-
-            if not codes:
-                return None     # Empty course list: Degenerate Kuali node, skip silently
             
             return {
                 KEY_LOGIC    : SELECT_ALL,
@@ -431,7 +428,7 @@ class PrereqParser:
         return {KEY_TYPE: TYPE_TEXT, KEY_TEXT: text}
 
 
-    def _parse_ruleview_li(self, li: Tag) -> dict | None:
+    def _parse_ruleview_li(self, li: Tag) -> dict:
         """
         Level 3
         -------
@@ -439,7 +436,6 @@ class PrereqParser:
         Finds the result div inside a `<li>` with the `"data-test"` attr and delegates its parsing 
         to `_parse_result_div()`.
 
-        Returns `None` if the result div contains a degenerate node (e.g. empty course list).
         Raises `ParseError` if the expected result div is not found.
         """
 
@@ -487,7 +483,7 @@ class PrereqParser:
         raise ParseError(f"Expected inner <ul> in <div>: {div}")
 
 
-    def _parse_child(self, child: Tag) -> tuple[dict | None, str, int]:
+    def _parse_child(self, child: Tag) -> tuple[dict, str, int]:
         """
         Level 2
         -------
@@ -558,9 +554,7 @@ class PrereqParser:
                     continue
 
                 node, _, _ = self._parse_child(div_child)
-
-                if node is not None:
-                    children.append(node)
+                children.append(node)
 
             return (self._wrap(children, logic, n), logic, n)
 
@@ -620,9 +614,7 @@ class PrereqParser:
 
             # Delegate parsing of child tags down the pipeline
             node, child_logic, child_n = self._parse_child(child)
-
-            if node is not None:
-                children.append(node)
+            children.append(node)
 
             # CASE: Grouping logic override
             if child.name == "div" and child_logic == SELECT_ANY_N:
