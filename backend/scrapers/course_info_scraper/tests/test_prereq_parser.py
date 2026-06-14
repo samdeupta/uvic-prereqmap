@@ -785,7 +785,7 @@ class TestPrereqParserRealSamples:
     def sample_lines(self) -> list[str]:
         """Returns a list of HTML samples."""
 
-        path = Path(SAMPLE_FILENAME)
+        path = Path(__file__).parent / SAMPLE_FILENAME
 
         if not path.exists():
             pytest.skip("prereq_html_samples.txt not found")
