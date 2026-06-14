@@ -33,3 +33,4 @@ class Course(Base):
     name            : Mapped[str]           = mapped_column(String,  nullable=False)
     credits         : Mapped[float]         = mapped_column(Numeric, nullable=False)
     prereqs         : Mapped[dict | None]   = mapped_column(JSONB,   nullable=True)
+    coreqs          : Mapped[dict | None]   = mapped_column(JSONB,   nullable=True)
