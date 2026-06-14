@@ -23,7 +23,7 @@ class Subject(Base):
 
 class Course(Base):
     """
-    Stores the course code, subject, level, name, credits, and prereqs of each UVic course.
+    Stores the course code, subject, level, name, credits, prereqs and coreqs of each UVic course.
     """
     __tablename__ = "courses"
 

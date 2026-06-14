@@ -73,7 +73,7 @@ Returns all courses. Supports optional field selection and filtering.
 
 ```json
 {
-    "detail": "Invalid lvl value 'abc': expected an integer (e.g. '300') or an inclusive range (e.g. '200-399')."
+    "detail": "Invalid lvl value 'abc': expected a 3-digit integer (e.g. '300') or an inclusive 3-digit range (e.g. '200-399')."
 }
 ```
 

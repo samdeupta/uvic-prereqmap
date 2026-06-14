@@ -76,7 +76,7 @@ class CourseInfoScraper:
                         name    = course.name,
                         credits = course.credits,
                         prereqs = prereqs,
-                        coreqs = coreqs,
+                        coreqs  = coreqs,
                     ))
 
                 print(f"Inserted {len(courses)} courses.")
