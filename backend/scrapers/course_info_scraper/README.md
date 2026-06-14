@@ -8,15 +8,13 @@ Fetches all UVic course data from the Kuali API and writes it to the database in
 
 ## Pipeline
 
-```
 1. Scrape the UVic calendar page to extract the latest catalog ID
 2. Fetch the list of all courses (code, name, PID)
-3. For each course, fetch its credits and raw prerequisite HTML via its PID
-4. Parse each course's raw prerequisite HTML into a structured tree
+3. For each course, fetch its credits, raw prerequisite HTML, and raw corequisite HTML via its PID
+4. Parse each course's raw prerequisite and corequisite HTML into structured trees
 5. Truncate existing data and insert all courses in one transaction
-```
 
-Steps 1-3 are handled by `CourseInfoFetcher`. Step 4 is handled by `PrereqParser`. Step 5 is handled by `CourseInfoScraper`.
+Steps 1-3 are handled by `CourseInfoFetcher`. Step 4 is handled by `PrereqParser` and `CoreqParser`. Step 5 is handled by `CourseInfoScraper`.
 
 ---
 
@@ -47,7 +45,7 @@ Each course's prerequisite data is returned by the Kuali API as raw React-render
 
 - **`Complete N of: [COURSES]`:**
     
-    The student must complete at least `N` of the listed courses, where `N` is encoded in a `<span>` tag.
+    The student must complete at least `N` of the listed courses, where `N` is encoded in a `<span>` tag. Also produced by the `Completed or concurrently enrolled in N of:` variant, which is treated identically.
 
 - **`Complete N units from: [COURSES]`:**
     
@@ -143,7 +141,9 @@ Leaf nodes have a `"type"` key and no children.
 
 ### Notes
 
-Courses with no prerequisite data have `prereqs` set to `null` in the database. `PrereqParser` is only invoked when the Kuali API returns a non-empty prerequisite HTML string.
+- Courses with no prerequisite data have `prereqs` set to `null` in the database. `PrereqParser` is only invoked when the Kuali API returns a non-empty prerequisite HTML string.
+
+- Courses with no corequisite data have `coreqs` set to `null` in the database. `CoreqParser` is only invoked when the Kuali API returns a non-empty corequisite HTML string. `CoreqParser` is a subclass of `PrereqParser` and shares the same output schema.
 
 A node with a single child is returned as that child directly, without wrapping it in an `ALL` or `ANY` node.
 
@@ -161,3 +161,4 @@ Each course is stored as a single row with the following fields:
 | `name` | `str` | Course title |
 | `credits` | `float` | Minimum credit value |
 | `prereqs` | `JSONB` | Parsed prerequisite tree, or `null` if none |
+| `coreqs` | `JSONB` | Parsed corequisite tree, or `null` if none |

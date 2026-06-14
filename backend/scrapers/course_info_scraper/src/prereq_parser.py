@@ -7,11 +7,16 @@ from shared.errors import ParseError
 
 
 # ----- Regexes --------------------
-# To search against raw HTML
+# To search against raw HTML (prereq patterns)
 _COMPLETE_ALL_OF_RE  = re.compile(r"Complete\s+all\s+of\s*:",                  re.IGNORECASE)
 _COMPLETE_N_OF_RE    = re.compile(r"Complete\s+<span>\d+</span>\s+of\s*:",     re.IGNORECASE)
 _COMPLETE_N_UNITS_RE = re.compile(r"Complete\s+<span>[\d.]+</span>\s+units",   re.IGNORECASE)
-_CONCURRENTLY_RE     = re.compile(r"concurrently\s+enrolled",                  re.IGNORECASE)
+
+# To search against raw HTML (coreq patterns)
+_CONCURRENT_ALL_OF_RE   = re.compile(r"concurrently\s+enrolled\s+in\s+all\s+of:\s*",
+                                     re.IGNORECASE)
+_CONCURRENT_N_OF_RE     = re.compile(r"concurrently\s+enrolled\s+in\s+<span>\d+</span>\s+of\s*:",
+                                     re.IGNORECASE)
 
 # To search against compressed <span> text with whitespace and comment artifacts removed
 _WRAPPER_ALL_RE      = re.compile(r"Completeallof",                            re.IGNORECASE)
@@ -354,8 +359,7 @@ def _parse_ufs(result_div: Tag) -> dict:
 # ----- PrereqParser --------------------
 class PrereqParser:
     # ----- Private Methods --------------------
-    @staticmethod
-    def _parse_result_div(result_div: Tag) -> dict | None:
+    def _parse_result_div(self, result_div: Tag) -> dict:
         """
         Level 4: Base Case
         ------------------
@@ -365,7 +369,8 @@ class PrereqParser:
 
         Pattern to node type mapping:
         - "Complete all of: [`COURSES`]"                          -> ALL [COURSES]
-        - "Concurrently enrolled in: [`COURSES`]"                 -> ALL [COURSES]
+        - "`...` concurrently enrolled in all of: [`COURSES`]"    -> ALL [COURSES]
+        - "`...` concurrently enrolled in `N` of: [`COURSES`]"    -> ANY [COURSES]
         - "Complete `N` of: [`COURSES`]"                          -> ANY [COURSES]
         - "Complete `N` units from: [`COURSES`]"                  -> BASE_UFC
         - "Complete `N` units from [`SUBJECTS`] `LO` - `HI`"      -> BASE_UFS
@@ -384,11 +389,8 @@ class PrereqParser:
         text  = result_div.get_text(separator=" ", strip=True)
 
         # CASE: ALL [COURSES]
-        if _COMPLETE_ALL_OF_RE.search(raw) or _CONCURRENTLY_RE.search(raw):
+        if _COMPLETE_ALL_OF_RE.search(raw) or _CONCURRENT_ALL_OF_RE.search(raw):
             codes = _extract_course_codes(result_div)
-
-            if not codes:
-                return None     # Empty course list: Degenerate Kuali node, skip silently
             
             return {
                 KEY_LOGIC    : SELECT_ALL,
@@ -396,7 +398,7 @@ class PrereqParser:
             }
 
         # CASE: ANY [COURSES]
-        if _COMPLETE_N_OF_RE.search(raw):
+        if _COMPLETE_N_OF_RE.search(raw) or _CONCURRENT_N_OF_RE.search(raw):
             n = _get_span_int(result_div)
             codes = _extract_course_codes(result_div)
 
@@ -432,8 +434,7 @@ class PrereqParser:
         return {KEY_TYPE: TYPE_TEXT, KEY_TEXT: text}
 
 
-    @staticmethod
-    def _parse_ruleview_li(li: Tag) -> dict | None:
+    def _parse_ruleview_li(self, li: Tag) -> dict:
         """
         Level 3
         -------
@@ -441,7 +442,6 @@ class PrereqParser:
         Finds the result div inside a `<li>` with the `"data-test"` attr and delegates its parsing 
         to `_parse_result_div()`.
 
-        Returns `None` if the result div contains a degenerate node (e.g. empty course list).
         Raises `ParseError` if the expected result div is not found.
         """
 
@@ -450,11 +450,10 @@ class PrereqParser:
         if not result_div:
             raise ParseError(f"""(Level 3) Expected result div with "data-test" attr in <li>: {li}""")
 
-        return PrereqParser._parse_result_div(result_div)
+        return self._parse_result_div(result_div)
 
 
-    @staticmethod
-    def _find_inner_ul(div: Tag) -> tuple[Tag, Tag | None]:
+    def _find_inner_ul(self, div: Tag) -> tuple[Tag, Tag | None]:
         """
         Finds the `<ul>` tag inside a `<div>` containing a `<span class="rules_groupHeader_37">`.
 
@@ -472,7 +471,7 @@ class PrereqParser:
             # CASE: If nested div, recurse into it
             if child.name == "div":
                 try:
-                    return PrereqParser._find_inner_ul(child)
+                    return self._find_inner_ul(child)
                 except ParseError:
                     continue
             
@@ -490,8 +489,7 @@ class PrereqParser:
         raise ParseError(f"Expected inner <ul> in <div>: {div}")
 
 
-    @staticmethod
-    def _parse_child(child: Tag) -> tuple[dict | None, str, int]:
+    def _parse_child(self, child: Tag) -> tuple[dict, str, int]:
         """
         Level 2
         -------
@@ -531,7 +529,7 @@ class PrereqParser:
             if not inner_ul:
                 raise ParseError(f"(Level 2) Expected inner <ul> in wrapper <li>: {child}")
 
-            node = PrereqParser._parse_ul(inner_ul, logic_override=logic, n_override=n)
+            node = self._parse_ul(inner_ul, logic_override=logic, n_override=n)
 
             return (node, logic, n)
 
@@ -561,27 +559,24 @@ class PrereqParser:
                 if div_child.name == "span" and "rules_groupHeader_37" in div_child.get("class", []):
                     continue
 
-                node, _, _ = PrereqParser._parse_child(div_child)
+                node, _, _ = self._parse_child(div_child)
+                children.append(node)
 
-                if node is not None:
-                    children.append(node)
-
-            return (PrereqParser._wrap(children, logic, n), logic, n)
+            return (self._wrap(children, logic, n), logic, n)
 
         # CASE: Type 3
         if child.name == "li" and child.get("data-test"):
             if "ruleView" not in child.get("data-test", ""):
                 raise ParseError(f"""(Level 2) Unexpected "data-test" value in <li>: {child.get("data-test")}""")
 
-            node = PrereqParser._parse_ruleview_li(child)
+            node = self._parse_ruleview_li(child)
 
             return (node, SELECT_ALL, 1)
 
         raise ParseError(f"(Level 2) Unexpected tag type: {child}")
 
 
-    @staticmethod
-    def _wrap(children: list[dict], logic: str, n: int) -> dict:
+    def _wrap(self, children: list[dict], logic: str, n: int) -> dict:
         """
         Wraps a list of children into an ANY/ALL node.
         Returns the single child directly if there is only one.
@@ -599,8 +594,7 @@ class PrereqParser:
         return {KEY_LOGIC: SELECT_ALL, KEY_CHILDREN: children}
 
 
-    @staticmethod
-    def _parse_ul(ul: Tag, logic_override: str = SELECT_ALL, n_override: int = 1) -> dict:
+    def _parse_ul(self, ul: Tag, logic_override: str = SELECT_ALL, n_override: int = 1) -> dict:
         """
         Level 1
         -------
@@ -625,22 +619,19 @@ class PrereqParser:
                 continue
 
             # Delegate parsing of child tags down the pipeline
-            node, child_logic, child_n = PrereqParser._parse_child(child)
-
-            if node is not None:
-                children.append(node)
+            node, child_logic, child_n = self._parse_child(child)
+            children.append(node)
 
             # CASE: Grouping logic override
             if child.name == "div" and child_logic == SELECT_ANY_N:
                 logic = SELECT_ANY_N
                 n     = child_n
 
-        return PrereqParser._wrap(children, logic, n)
+        return self._wrap(children, logic, n)
 
 
     # ----- Public Method --------------------
-    @staticmethod
-    def parse(html: str) -> dict:
+    def parse(self, html: str) -> dict:
         """
         Parses raw prereq HTML into a nested prereq tree dict.
 
@@ -676,6 +667,6 @@ class PrereqParser:
             raise ParseError(f"Expected outer <ul> tag")
 
         try:
-            return PrereqParser._parse_ul(outer_ul)
+            return self._parse_ul(outer_ul)
         except Exception as e:
             raise ParseError(f"{e}; for HTML: {html}") from e

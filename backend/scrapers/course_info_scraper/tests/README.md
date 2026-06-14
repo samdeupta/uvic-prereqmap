@@ -37,7 +37,8 @@ Verifies that each distinct input pattern produces the correct output. Each test
 | `test_any_1_of_2_courses` | `Complete 1 of: [2 courses]` | 1 |
 | `test_any_2_of_3_courses` | `Complete 2 of: [3 courses]` | 238 |
 | `test_plain_text_node` | Result div containing plain text only | 3 |
-| `test_concurrently_enrolled_treated_as_all` | `Completed or concurrently enrolled in all of: [course]` | 991 |
+| `test_concurrently_enrolled_in_all_of_treated_as_all` | `Completed or concurrently enrolled in all of: [course]` | 991 |
+| `test_concurrently_enrolled_in_n_of_treated_as_any` | `Completed or concurrently enrolled in 1 of: [2 courses]` | 214 (isolated) |
 | `test_ufc` | `Complete N units from: [courses]` | 2239 (isolated) |
 | `test_ufs_minimum_no_subject` | `Completed a minimum of N units` | 34 (isolated) |
 | `test_ufs_bare_subject_and_level` | `N units of X-level SUBJECT courses` | 140 |

@@ -18,6 +18,7 @@ All endpoints support field selection via the `fields` query parameter. The vali
 | `name` | `string` | Course title |
 | `credits` | `float` | Minimum credit value |
 | `prereqs` | `JSON` or `null` | Parsed prerequisite tree. See the course info scraper README for the full output schema |
+| `coreqs` | `JSON` or `null` | Parsed corequisite tree. See the course info scraper README for the full output schema |
 
 ---
 
@@ -72,7 +73,7 @@ Returns all courses. Supports optional field selection and filtering.
 
 ```json
 {
-    "detail": "Invalid lvl value 'abc': expected an integer (e.g. '300') or an inclusive range (e.g. '200-399')."
+    "detail": "Invalid lvl value 'abc': expected a 3-digit integer (e.g. '300') or an inclusive 3-digit range (e.g. '200-399')."
 }
 ```
 

@@ -23,7 +23,7 @@ class Subject(Base):
 
 class Course(Base):
     """
-    Stores the course code, subject, level, name, credits, and prereqs of each UVic course.
+    Stores the course code, subject, level, name, credits, prereqs and coreqs of each UVic course.
     """
     __tablename__ = "courses"
 
@@ -33,3 +33,4 @@ class Course(Base):
     name            : Mapped[str]           = mapped_column(String,  nullable=False)
     credits         : Mapped[float]         = mapped_column(Numeric, nullable=False)
     prereqs         : Mapped[dict | None]   = mapped_column(JSONB,   nullable=True)
+    coreqs          : Mapped[dict | None]   = mapped_column(JSONB,   nullable=True)

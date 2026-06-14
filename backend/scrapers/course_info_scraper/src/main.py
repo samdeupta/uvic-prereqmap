@@ -9,6 +9,7 @@ from db.schema import Course
 from shared.http_client import HTTPClient
 from .fetcher import CourseInfoFetcher
 from .prereq_parser import PrereqParser
+from .coreq_parser import CoreqParser
 
 
 # ----- Helper Methods --------------------
@@ -60,9 +61,13 @@ class CourseInfoScraper:
                 # Insert new course data
                 for course in courses:
                     prereqs = None
+                    coreqs = None
 
                     if course.prereq_html:
-                        prereqs = PrereqParser.parse(course.prereq_html)
+                        prereqs = PrereqParser().parse(course.prereq_html)
+
+                    if course.coreq_html:
+                        coreqs = CoreqParser().parse(course.coreq_html)
 
                     session.add(Course(
                         code    = course.code,
@@ -71,6 +76,7 @@ class CourseInfoScraper:
                         name    = course.name,
                         credits = course.credits,
                         prereqs = prereqs,
+                        coreqs  = coreqs,
                     ))
 
                 print(f"Inserted {len(courses)} courses.")
