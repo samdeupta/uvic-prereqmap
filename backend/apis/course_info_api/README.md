@@ -18,6 +18,7 @@ All endpoints support field selection via the `fields` query parameter. The vali
 | `name` | `string` | Course title |
 | `credits` | `float` | Minimum credit value |
 | `prereqs` | `JSON` or `null` | Parsed prerequisite tree. See the course info scraper README for the full output schema |
+| `coreqs` | `JSON` or `null` | Parsed corequisite tree. See the course info scraper README for the full output schema |
 
 ---
 

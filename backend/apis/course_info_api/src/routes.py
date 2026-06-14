@@ -10,7 +10,7 @@ from db.schema import Course
 
 
 # ----- Constants --------------------
-VALID_FIELDS = frozenset({"code", "subject", "lvl", "name", "credits", "prereqs"})
+VALID_FIELDS = frozenset({"code", "subject", "lvl", "name", "credits", "prereqs", "coreqs"})
 _LVL_RANGE_RE = re.compile(r"^(\d{3})-(\d{3})$")
 
 
