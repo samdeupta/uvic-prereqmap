@@ -299,7 +299,7 @@ class TestPrereqParserLeafNodes:
             "n"        : 1,
             "children" : [
                 {"type": TYPE_COURSE, "code": "BIOC300A"},
-                {"type": TYPE_COURSE, "code": "BIOC300B"},
+                {"type": TYPE_COURSE, "code": "BIOC300B"}
             ]
         }
 
@@ -337,7 +337,7 @@ class TestPrereqParserLeafNodes:
         assert PrereqParser().parse(html) == {
             "type"    : TYPE_UNITS_FROM_COURSE,
             "units"   : 3.0,
-            "courses" : ["WRIT303", "WRIT304", "WRIT305", "WRIT316", "WRIT318", "WRIT320"],
+            "courses" : ["WRIT303", "WRIT304", "WRIT305", "WRIT316", "WRIT318", "WRIT320"]
         }
 
 
@@ -360,7 +360,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 12.0,
             "subjects"  : None,
-            "lvl_range" : {"min": -1, "max": -1},
+            "lvl_range" : {"min": -1, "max": -1}
         }
 
 
@@ -382,7 +382,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 9.0,
             "subjects"  : ["ART"],
-            "lvl_range" : {"min": 200, "max": 299},
+            "lvl_range" : {"min": 200, "max": 299}
         }
 
 
@@ -404,7 +404,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 3.0,
             "subjects"  : ["AHVS", "HA"],
-            "lvl_range" : {"min": 300, "max": 399},
+            "lvl_range" : {"min": 300, "max": 399}
         }
 
 
@@ -427,7 +427,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 1.5,
             "subjects"  : ["HSTR"],
-            "lvl_range" : {"min": 100, "max": 299},
+            "lvl_range" : {"min": 100, "max": 299}
         }
 
 
@@ -450,7 +450,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 1.5,
             "subjects"  : ["MATH", "STAT"],
-            "lvl_range" : {"min": 100, "max": 499},
+            "lvl_range" : {"min": 100, "max": 499}
         }
 
 
@@ -473,7 +473,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 4.5,
             "subjects"  : ["PHIL"],
-            "lvl_range" : {"min": -1, "max": -1},
+            "lvl_range" : {"min": -1, "max": -1}
         }
 
 
@@ -496,7 +496,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 1.5,
             "subjects"  : ["PHYS"],
-            "lvl_range" : {"min": 100, "max": 199},
+            "lvl_range" : {"min": 100, "max": 199}
         }
 
 
@@ -522,7 +522,7 @@ class TestPrereqParserLeafNodes:
                     "type"      : TYPE_UNITS_FROM_SUBJECT,
                     "units"     : 3.0,
                     "subjects"  : ["PHIL"],
-                    "lvl_range" : {"min": -1, "max": -1},
+                    "lvl_range" : {"min": -1, "max": -1}
                 },
             ],
         }
@@ -546,7 +546,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 4.5,
             "subjects"  : ["GNDR", "WS"],
-            "lvl_range" : {"min": 300, "max": 499},
+            "lvl_range" : {"min": 300, "max": 499}
         }
 
 
@@ -568,7 +568,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 6.0,
             "subjects"  : ["BIOL", "EPHE", "MEDS"],
-            "lvl_range" : {"min": 300, "max": 499},
+            "lvl_range" : {"min": 300, "max": 499}
         }
 
 
@@ -589,7 +589,7 @@ class TestPrereqParserLeafNodes:
 
         assert PrereqParser().parse(html) == {
             "type" : TYPE_TEXT,
-            "text" : "9 units of 300-level Visual Arts courses",
+            "text" : "9 units of 300-level Visual Arts courses"
         }
 
 
@@ -612,7 +612,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 12.0,
             "subjects"  : None,
-            "lvl_range" : {"min": -1, "max": -1},
+            "lvl_range" : {"min": -1, "max": -1}
         }
 
 

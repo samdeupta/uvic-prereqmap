@@ -145,7 +145,21 @@ Leaf nodes have a `"type"` key and no children.
 
 - Courses with no corequisite data have `coreqs` set to `null` in the database. `CoreqParser` is only invoked when the Kuali API returns a non-empty corequisite HTML string. `CoreqParser` is a subclass of `PrereqParser` and shares the same output schema.
 
-A node with a single child is returned as that child directly, without wrapping it in an `ALL` or `ANY` node.
+- `parse()` returns `None` when every node in a tree is skipped due to being known incomplete Kuali data patterns. In this case `prereqs` or `coreqs` is set to `null` in the database, the same as if no HTML were present.
+
+- A node with a single child is returned as that child directly, without wrapping it in an `ALL` or `ANY` node.
+
+---
+
+## Incomplete Kuali Data
+
+The Kuali API occasionally returns structurally valid but semantically empty nodes; most likely the result of incomplete data entry. Rather than failing the entire parse, `PrereqParser` skips these nodes silently and preserves the rest of the tree.
+
+Known incomplete patterns are defined in `incomplete_kuali_patterns.csv`, a two-column CSV with a human-readable `description` and a `pattern` regex. The file is loaded once on `PrereqParser` instantiation. Adding a new pattern requires only a new row in the CSV and no code changes.
+
+Currently known patterns:
+- `Complete all of: <empty_course_list>`
+- `concurrently enrolled in all of: <empty_course_list>`
 
 ---
 
