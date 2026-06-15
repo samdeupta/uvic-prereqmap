@@ -299,7 +299,7 @@ class TestPrereqParserLeafNodes:
             "n"        : 1,
             "children" : [
                 {"type": TYPE_COURSE, "code": "BIOC300A"},
-                {"type": TYPE_COURSE, "code": "BIOC300B"},
+                {"type": TYPE_COURSE, "code": "BIOC300B"}
             ]
         }
 
@@ -337,7 +337,7 @@ class TestPrereqParserLeafNodes:
         assert PrereqParser().parse(html) == {
             "type"    : TYPE_UNITS_FROM_COURSE,
             "units"   : 3.0,
-            "courses" : ["WRIT303", "WRIT304", "WRIT305", "WRIT316", "WRIT318", "WRIT320"],
+            "courses" : ["WRIT303", "WRIT304", "WRIT305", "WRIT316", "WRIT318", "WRIT320"]
         }
 
 
@@ -360,7 +360,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 12.0,
             "subjects"  : None,
-            "lvl_range" : {"min": -1, "max": -1},
+            "lvl_range" : {"min": -1, "max": -1}
         }
 
 
@@ -382,7 +382,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 9.0,
             "subjects"  : ["ART"],
-            "lvl_range" : {"min": 200, "max": 299},
+            "lvl_range" : {"min": 200, "max": 299}
         }
 
 
@@ -404,7 +404,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 3.0,
             "subjects"  : ["AHVS", "HA"],
-            "lvl_range" : {"min": 300, "max": 399},
+            "lvl_range" : {"min": 300, "max": 399}
         }
 
 
@@ -427,7 +427,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 1.5,
             "subjects"  : ["HSTR"],
-            "lvl_range" : {"min": 100, "max": 299},
+            "lvl_range" : {"min": 100, "max": 299}
         }
 
 
@@ -450,7 +450,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 1.5,
             "subjects"  : ["MATH", "STAT"],
-            "lvl_range" : {"min": 100, "max": 499},
+            "lvl_range" : {"min": 100, "max": 499}
         }
 
 
@@ -473,7 +473,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 4.5,
             "subjects"  : ["PHIL"],
-            "lvl_range" : {"min": -1, "max": -1},
+            "lvl_range" : {"min": -1, "max": -1}
         }
 
 
@@ -496,7 +496,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 1.5,
             "subjects"  : ["PHYS"],
-            "lvl_range" : {"min": 100, "max": 199},
+            "lvl_range" : {"min": 100, "max": 199}
         }
 
 
@@ -522,7 +522,7 @@ class TestPrereqParserLeafNodes:
                     "type"      : TYPE_UNITS_FROM_SUBJECT,
                     "units"     : 3.0,
                     "subjects"  : ["PHIL"],
-                    "lvl_range" : {"min": -1, "max": -1},
+                    "lvl_range" : {"min": -1, "max": -1}
                 },
             ],
         }
@@ -546,7 +546,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 4.5,
             "subjects"  : ["GNDR", "WS"],
-            "lvl_range" : {"min": 300, "max": 499},
+            "lvl_range" : {"min": 300, "max": 499}
         }
 
 
@@ -568,7 +568,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 6.0,
             "subjects"  : ["BIOL", "EPHE", "MEDS"],
-            "lvl_range" : {"min": 300, "max": 499},
+            "lvl_range" : {"min": 300, "max": 499}
         }
 
 
@@ -589,7 +589,7 @@ class TestPrereqParserLeafNodes:
 
         assert PrereqParser().parse(html) == {
             "type" : TYPE_TEXT,
-            "text" : "9 units of 300-level Visual Arts courses",
+            "text" : "9 units of 300-level Visual Arts courses"
         }
 
 
@@ -612,7 +612,7 @@ class TestPrereqParserLeafNodes:
             "type"      : TYPE_UNITS_FROM_SUBJECT,
             "units"     : 12.0,
             "subjects"  : None,
-            "lvl_range" : {"min": -1, "max": -1},
+            "lvl_range" : {"min": -1, "max": -1}
         }
 
 
@@ -769,7 +769,133 @@ class TestPrereqParserCompositeNodes:
         }
 
 
-# ----- 4. Regression Tests on Real Sample Data --------------------
+# ----- 4. Incomplete Kuali Data Tests --------------------
+class TestPrereqParserIncompleteKualiData:
+    """
+    Verifies that known incomplete Kuali data nodes are skipped silently rather than raising 
+    `ParseError`, and that the rest of the prereq tree is preserved intact.
+    """
+
+    def test_empty_all_of_node_skipped(self):
+        """
+        Prereq tree containing an incomplete node of the form `Complete all of: <ul></ul>` but its 
+        sibling nodes are valid -> Incomplete node is skipped and the rest of the tree is preserved intact.
+        Source: Line 707.
+        """
+
+        html = (
+            '<div><div><div><ul><li><span>Complete <!-- -->all<!-- --> of the following</span><ul>'
+            '<div><span class="rules_groupHeader_37"></span><li><span>Complete <!-- -->1<!-- --> of the following</span><ul>'
+            '<li data-test="ruleView-A.1"><div data-test="ruleView-A.1-result">Complete <span>1</span> of: <div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/5e8bc9e16fd5672600958d7e" target="_blank">ENGR110</a> <!-- -->-<!-- --> <!-- -->Design and Communication I<!-- --> <span style="margin-left:5px">(2.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5c4ff39119654524003852e3" target="_blank">ENGR111</a> <!-- -->-<!-- --> <!-- -->Design and Communication IB<!-- --> <span style="margin-left:5px">(2.5)</span></span></li>'
+            '</ul></div></div></li>'
+            '<div><span class="rules_groupHeader_37"></span><li><span>Complete <!-- -->all<!-- --> of the following</span><ul>'
+            '<li data-test="ruleView-A.2.1"><div data-test="ruleView-A.2.1-result">Complete all of: <div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/5e8bc7646fd5672600958d61" target="_blank">ENGR112</a> <!-- -->-<!-- --> <!-- -->Design I<!-- --> <span style="margin-left:5px">(1.0)</span></span></li>'
+            '</ul></div></div></li>'
+            '<li data-test="ruleView-A.2.2"><div data-test="ruleView-A.2.2-result">Complete <span>1</span> of: <div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/64e7b6f87c6606787bfdbca5" target="_blank">ATWP135</a> <!-- -->-<!-- --> <!-- -->Academic Reading and Writing<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5de177baa147ae2400fda6ea" target="_blank">ENGL135</a> <!-- -->-<!-- --> <!-- -->Academic Reading and Writing<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div></div></li></ul></li></div>'
+            '<div><span class="rules_groupHeader_37"></span><li><span>Complete <!-- -->all<!-- --> of the following</span><ul>'
+            '<li data-test="ruleView-A.3.1"><div data-test="ruleView-A.3.1-result">Complete all of: <div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/5c4ff2ca19654524003850df" target="_blank">ELEC199</a> <!-- -->-<!-- --> <!-- -->Laboratory in Engineering Fundamentals<!-- --> <span style="margin-left:5px">(1.0)</span></span></li>'
+            '</ul></div></div></li>'
+            '<li data-test="ruleView-A.3.2"><div data-test="ruleView-A.3.2-result">Complete <span>1</span> of: <div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/64e7b6f87c6606787bfdbca5" target="_blank">ATWP135</a> <!-- -->-<!-- --> <!-- -->Academic Reading and Writing<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5de177baa147ae2400fda6ea" target="_blank">ENGL135</a> <!-- -->-<!-- --> <!-- -->Academic Reading and Writing<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div></div></li></ul></li></div>'
+            '</ul></li></div>'
+            '<li data-test="ruleView-B"><div data-test="ruleView-B-result">Complete <span>1</span> of: <div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/633ca14333e5fe717cbdb3dd" target="_blank">ENGR240</a> <!-- -->-<!-- --> <!-- -->Technical Writing<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/62f5a358e45450c5e69547d0" target="_blank">ENGL225</a> <!-- -->-<!-- --> <!-- -->Technical Communications: Written and Verbal<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/648a4b192fb3c37000c4d450" target="_blank">ENSH202</a> <!-- -->-<!-- --> <!-- -->Technical Communications, Written and Verbal<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div></div></li>'
+            '<div><span class="rules_groupHeader_37"></span><li><span>Complete <!-- -->1<!-- --> of the following</span><ul>'
+            '<li data-test="ruleView-C.2"><div data-test="ruleView-C.2-result">Completed or concurrently enrolled in <span>1</span> of: <div><ul style="margin-top:5px;margin-bottom:5px">'
+            '<li><span><a href="#/courses/view/5cbdf4e356bbef2400c2efcf" target="_blank">CSC110</a> <!-- -->-<!-- --> <!-- -->Fundamentals of Programming I<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '<li><span><a href="#/courses/view/5cbdf4e404ce072400155ec0" target="_blank">CSC111</a> <!-- -->-<!-- --> <!-- -->Fundamentals of Programming with Engineering Applications<!-- --> <span style="margin-left:5px">(1.5)</span></span></li>'
+            '</ul></div></div></li>'
+            '<li data-test="ruleView-C.1"><div data-test="ruleView-C.1-result">Complete all of: <div><ul style="margin-top:5px;margin-bottom:5px"></ul></div></div></li>'
+            '</ul></li></div>'
+            '</ul></li></ul></div></div></div>'
+        )
+
+        assert PrereqParser().parse(html) == {
+            "logic": SELECT_ANY_N,
+            "n": 1,
+            "children": [
+                {
+                    "logic": SELECT_ANY_N,
+                    "n": 1,
+                    "children": [
+                        {
+                            "logic": SELECT_ANY_N,
+                            "n": 1,
+                            "children": [
+                                {"type": TYPE_COURSE, "code": "ENGR110"},
+                                {"type": TYPE_COURSE, "code": "ENGR111"}
+                            ]
+                        },
+                        {
+                            "logic": SELECT_ALL,
+                            "children": [
+                                {
+                                    "logic": SELECT_ALL,
+                                    "children": [{"type": TYPE_COURSE, "code": "ENGR112"}]
+                                },
+                                {
+                                    "logic": SELECT_ANY_N,
+                                    "n": 1,
+                                    "children": [
+                                        {"type": TYPE_COURSE, "code": "ATWP135"},
+                                        {"type": TYPE_COURSE, "code": "ENGL135"}
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "logic": SELECT_ALL,
+                            "children": [
+                                {
+                                    "logic": SELECT_ALL,
+                                    "children": [{"type": TYPE_COURSE, "code": "ELEC199"}]
+                                },
+                                {
+                                    "logic": SELECT_ANY_N,
+                                    "n": 1,
+                                    "children": [
+                                        {"type": TYPE_COURSE, "code": "ATWP135"},
+                                        {"type": TYPE_COURSE, "code": "ENGL135"}
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "logic": SELECT_ANY_N,
+                    "n": 1,
+                    "children": [
+                        {"type": TYPE_COURSE, "code": "ENGR240"},
+                        {"type": TYPE_COURSE, "code": "ENGL225"},
+                        {"type": TYPE_COURSE, "code": "ENSH202"}
+                    ]
+                },
+                {
+                    "logic": SELECT_ANY_N,
+                    "n": 1,
+                    "children": [
+                        {"type": TYPE_COURSE, "code": "CSC110"},
+                        {"type": TYPE_COURSE, "code": "CSC111"}
+                    ]
+                }
+            ]
+        }
+
+
+# ----- 5. Regression Tests on Real Sample Data --------------------
 class TestPrereqParserRealSamples:
     """
     Regression suite against all lines in `prereq_html_samples.txt`.
@@ -795,10 +921,10 @@ class TestPrereqParserRealSamples:
 
 
     @pytest.fixture(scope="class")
-    def parsed_samples(self, sample_lines: list[str]) -> list[dict | None]:
+    def parsed_samples(self, sample_lines: list[str]) -> list[dict | None | ParseError]:
         """
-        Pre-parses all samples once. Stores `None` for any line that raises an exception, so structural 
-        tests can skip those lines without re-raising.
+        Pre-parses all samples once. Stores a `ParseError` instance for any line that raises an 
+        exception, so structural tests can skip those lines without re-raising.
         """
 
         results = []
@@ -807,22 +933,23 @@ class TestPrereqParserRealSamples:
             try:
                 results.append(PrereqParser().parse(html))
             except Exception:
-                results.append(None)
+                results.append(ParseError())
 
         return results
 
 
-    def test_no_parse_errors(self, sample_lines: list[str], parsed_samples: list[dict | None]):
+    def test_no_parse_errors(self, sample_lines: list[str], parsed_samples: list[dict | None | ParseError]):
         """
         Every sample must parse without raising any exception.
-        Only re-parses lines where `parsed_samples` recorded `None` (i.e. samples which caused 
-        `PrereqParser` to raise an exception), so the error is captured and reported cleanly.
+        Only re-parses lines where `parsed_samples` recorded a `ParseError` instance (i.e. samples 
+        which caused `PrereqParser` to raise an exception), so the error is captured and reported 
+        cleanly.
         """
 
         errors = []
 
         for i, result in enumerate(parsed_samples):
-            if result is not None:
+            if not isinstance(result, ParseError):
                 continue
 
             try:
@@ -836,21 +963,21 @@ class TestPrereqParserRealSamples:
         )
 
 
-    def test_all_results_are_dicts(self, parsed_samples: list[dict | None]):
+    def test_all_results_are_dicts(self, parsed_samples: list[dict | None | ParseError]):
         """Every parsed result must be a dict."""
 
         for i, result in enumerate(parsed_samples):
-            if result is None:
+            if result is None or isinstance(result, ParseError):
                 continue
 
             assert isinstance(result, dict), f"Line {i + 1}: got {type(result).__name__}"
 
 
-    def test_all_results_have_logic_or_type(self, parsed_samples: list[dict | None]):
+    def test_all_results_have_logic_or_type(self, parsed_samples: list[dict | None | ParseError]):
         """Top-level result must have either 'logic' (composite) or 'type' (leaf) key."""
 
         for i, result in enumerate(parsed_samples):
-            if result is None:
+            if result is None or isinstance(result, ParseError):
                 continue
 
             assert "logic" in result or "type" in result, (
@@ -858,7 +985,7 @@ class TestPrereqParserRealSamples:
             )
 
 
-    def test_logic_nodes_have_non_empty_children(self, parsed_samples: list[dict | None]):
+    def test_logic_nodes_have_non_empty_children(self, parsed_samples: list[dict | None | ParseError]):
         """Any node with 'logic' must have a non-empty 'children' list (checked recursively)."""
 
         def check(node: dict, line_num: int):
@@ -871,11 +998,11 @@ class TestPrereqParserRealSamples:
                     check(child, line_num)
 
         for i, result in enumerate(parsed_samples):
-            if result is not None:
+            if result is not None and not isinstance(result, ParseError):
                 check(result, i + 1)
 
 
-    def test_any_nodes_have_positive_int_n(self, parsed_samples: list[dict | None]):
+    def test_any_nodes_have_positive_int_n(self, parsed_samples: list[dict | None | ParseError]):
         """Every ANY node must have an integer `n>=1` (checked recursively)."""
 
         def check(node: dict, line_num: int):
@@ -890,11 +1017,11 @@ class TestPrereqParserRealSamples:
                 check(child, line_num)
 
         for i, result in enumerate(parsed_samples):
-            if result is not None:
+            if result is not None and not isinstance(result, ParseError):
                 check(result, i + 1)
 
 
-    def test_course_nodes_have_non_empty_string_code(self, parsed_samples: list[dict | None]):
+    def test_course_nodes_have_non_empty_string_code(self, parsed_samples: list[dict | None | ParseError]):
         """Every course leaf node must have a non-empty string `"code"` (checked recursively)."""
 
         def check(node: dict, line_num: int):
@@ -908,11 +1035,11 @@ class TestPrereqParserRealSamples:
                 check(child, line_num)
 
         for i, result in enumerate(parsed_samples):
-            if result is not None:
+            if result is not None and not isinstance(result, ParseError):
                 check(result, i + 1)
 
 
-    def test_text_nodes_have_non_empty_string_text(self, parsed_samples: list[dict | None]):
+    def test_text_nodes_have_non_empty_string_text(self, parsed_samples: list[dict | None | ParseError]):
         """Every BASE_TEXT node must have a non-empty string `"text"` (checked recursively)."""
 
         def check(node: dict, line_num: int):
@@ -926,11 +1053,11 @@ class TestPrereqParserRealSamples:
                 check(child, line_num)
 
         for i, result in enumerate(parsed_samples):
-            if result is not None:
+            if result is not None and not isinstance(result, ParseError):
                 check(result, i + 1)
 
 
-    def test_ufc_nodes_have_required_keys(self, parsed_samples: list[dict | None]):
+    def test_ufc_nodes_have_required_keys(self, parsed_samples: list[dict | None | ParseError]):
         """
         Every BASE_UFC node must have `units` (non-negative float) and `courses` (non-empty list of 
         strings) (checked recursively).
@@ -956,11 +1083,11 @@ class TestPrereqParserRealSamples:
                 check(child, line_num)
 
         for i, result in enumerate(parsed_samples):
-            if result is not None:
+            if result is not None and not isinstance(result, ParseError):
                 check(result, i + 1)
 
 
-    def test_ufs_nodes_have_required_keys(self, parsed_samples: list[dict | None]):
+    def test_ufs_nodes_have_required_keys(self, parsed_samples: list[dict | None | ParseError]):
         """
         Every BASE_UFS node must have `units` (non-negative float), `subjects` (list|None), 
         and `lvl_range` (dict with int `min` and `max`) (checked recursively).
@@ -992,5 +1119,5 @@ class TestPrereqParserRealSamples:
                 check(child, line_num)
 
         for i, result in enumerate(parsed_samples):
-            if result is not None:
+            if result is not None and not isinstance(result, ParseError):
                 check(result, i + 1)

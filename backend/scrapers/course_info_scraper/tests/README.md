@@ -2,7 +2,7 @@
 
 ## Methodology
 
-The tests are all black-box: written by observing inputs and outputs only, with no reference to the parser's internal implementation. All HTML fixtures used in sections 2 and 3 are taken verbatim from `prereq_html_samples.txt`, a file of 2,253 real prerequisite HTML snippets from the UVic Kuali API, with their line numbers documented. Expected outputs were produced by running `PrereqParser.parse()` on those fixtures and manually verified.
+The tests are all black-box: written by observing inputs and outputs only, with no reference to the parser's internal implementation. All HTML fixtures used in sections 2, 3 and 4 are taken verbatim from `prereq_html_samples.txt`, a file of 2,253 real prerequisite HTML snippets from the UVic Kuali API, with their line numbers documented. Expected outputs were produced by running `PrereqParser().parse()` on those fixtures and manually verified.
 
 ---
 
@@ -72,9 +72,20 @@ Verifies the two structural patterns that produce composite trees by combining m
 
 ---
 
-## Section 4 — `TestPrereqParserRealSamples`
+## Section 4 — `TestPrereqParserIncompleteKualiData`
 
-Regression suite executed against all 2,253 samples in `prereq_html_samples.txt`. The purpose is breadth coverage across the full diversity of real-world inputs, not exact output verification. All **9** tests share a single class-scoped fixture that loads the file once. The fixture skips gracefully if `prereq_html_samples.txt` is not present.
+Verifies that known incomplete Kuali data nodes are skipped silently rather than raising `ParseError`, and that the rest of the prereq tree is preserved intact.
+
+- **`test_empty_all_of_node_skipped` (line 707):** A prereq tree containing a `Complete all of: <ul></ul>` node (an `ALL` node with an empty course list and a known incomplete Kuali data pattern). The test verifies the node is skipped silently and that all sibling nodes are preserved intact, producing an exact-match assert on the full tree.
+
+---
+
+## Section 5 — `TestPrereqParserRealSamples`
+
+Regression suite executed against all 2,253 samples in `prereq_html_samples.txt`. The purpose is breadth coverage across the full diversity of real-world inputs, not exact output verification.
+
+All **9** tests share two class-scoped fixtures:
+`sample_lines` loads the file once, and `parsed_samples` pre-parses all lines, storing a `ParseError` instance for any line that raises. The fixture skips gracefully if `prereq_html_samples.txt` is not present.
 
 | Test | Assertion |
 |---|---|
@@ -93,4 +104,4 @@ Regression suite executed against all 2,253 samples in `prereq_html_samples.txt`
 ## Notes
 
 - `prereq_html_samples.txt` must be in the same directory as the test file.
-- If `prereq_html_samples.txt` is absent, sections 1–3 run in full but section 4 will be skipped.
+- If `prereq_html_samples.txt` is absent, sections 1–4 run in full but section 5 will be skipped.
