@@ -385,6 +385,11 @@ def _is_incomplete_kuali_node(tag: Tag, patterns: list[re.Pattern]) -> bool:
 # ----- PrereqParser --------------------
 class PrereqParser:
     def __init__(self):
+        """
+        Parses prerequisite HTML from Kuali API into structured prerequistite trees according to 
+        predefined schema.
+        """
+
         self._incomplete_patterns: list[re.Pattern] = _load_incomplete_patterns()
 
 
@@ -475,9 +480,14 @@ class PrereqParser:
         Finds the result div inside a `<li>` with the `"data-test"` attr and delegates its parsing 
         to `_parse_result_div()`.
 
-        Returns `None` if the result div matches a known incomplete Kuali data pattern.
-        Raises `ParseError` if the expected result div is not found or if an unexpected `ParseError` is 
-        raised by `_parse_result_div()`.
+        Returns:
+        - `dict`: When the result div parses successfully.
+        - `None`: When parsing fails but the result div matches a known incomplete Kuali data pattern in 
+          `INCOMPLETE_PATTERNS_FILENAME`. This `None` propagates up through `_parse_ul()` and may surface 
+          as a `None` return from `parse()` if all nodes in the tree are skipped.
+
+        Raises `ParseError` if the expected result div is not found, or if an unrecognised `ParseError` 
+        is raised by `_parse_result_div()`.
         """
 
         result_div = li.find("div", {"data-test": re.compile(r"-result$")})
@@ -651,6 +661,12 @@ class PrereqParser:
 
         If any child div has a `<span class="rules_groupHeader_37">`, it overrides grouping logic for 
         the entire `<ul>` to ANY.
+
+        Returns:
+        - `dict`: When at least one child node is parsed successfully (not skipped).
+        - `None`: When child nodes are processed but are all skipped due to being incomplete.
+        
+        Raises `ParseError` if no children are processed at all (empty `<ul>`).
         """
 
         children            : list[dict] = []
@@ -707,6 +723,10 @@ class PrereqParser:
         - {`KEY_TYPE`: `TYPE_UNITS_FROM_COURSE`, `KEY_UNITS`: `<UNITS>`, `KEY_COURSES`: [...]}
         - {`KEY_TYPE`: `TYPE_UNITS_FROM_SUBJECT`, `KEY_UNITS`: `<UNITS>`, `KEY_SUBJECTS`: [...] | None, `KEY_LVL_RANGE`: {...}}
         - {`KEY_TYPE`: `TYPE_TEXT`, `KEY_TEXT`: `<TEXT>`}
+
+        Returns:
+        - `dict`: When parsing succeeds.
+        - `None`: When all child nodes are skipped due to being incomplete.
 
         Raises `ParseError` if the HTML structure fails to be parsed according to expected schema.
         """

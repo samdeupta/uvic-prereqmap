@@ -1,3 +1,3 @@
 description,pattern
-Complete all of: with empty course list,Complete all of:\s*<[^>]+>\s*<ul[^>]*>\s*</ul>
-Concurrently enrolled in all of: with empty course list,concurrently\s+enrolled\s+in\s+all\s+of:\s*<[^>]+>\s*<ul[^>]*>\s*</ul>
+Complete all of: [0 COURSES],Complete all of:\s*<[^>]+>\s*<ul[^>]*>\s*</ul>
+Concurrently enrolled in all of: [0 COURSES],concurrently\s+enrolled\s+in\s+all\s+of:\s*<[^>]+>\s*<ul[^>]*>\s*</ul>
