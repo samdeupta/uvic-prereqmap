@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import csv
+from pathlib import Path
 from bs4 import BeautifulSoup, Tag
 
 from shared.errors import ParseError
@@ -71,6 +73,10 @@ KEY_COURSES   = "courses"
 KEY_SUBJECTS  = "subjects"
 KEY_LVL_RANGE = "lvl_range"
 KEY_TEXT      = "text"
+
+
+# ----- Constants --------------------
+INCOMPLETE_PATTERNS_FILENAME = "incomplete_kuali_patterns.csv"
 
 
 # ----- Helper Methods --------------------
@@ -356,8 +362,32 @@ def _parse_ufs(result_div: Tag) -> dict:
     return _build_ufs_node(float(m.group(1)), text)
 
 
+def _load_incomplete_patterns() -> list[re.Pattern]:
+    """
+    Loads known incomplete Kuali data patterns from `INCOMPLETE_PATTERNS_FILENAME`.
+    Each row has a human-readable description (col 1) and a regex string (col 2).
+    """
+
+    path = Path(__file__).parent / INCOMPLETE_PATTERNS_FILENAME
+
+    with open(path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return [re.compile(row["pattern"], re.IGNORECASE) for row in reader]
+
+
+def _is_incomplete_kuali_node(tag: Tag, patterns: list[re.Pattern]) -> bool:
+    """Returns `True` if `tag` matches any known incomplete Kuali data pattern."""
+
+    raw = str(tag)
+    return any(p.search(raw) for p in patterns)
+
+
 # ----- PrereqParser --------------------
 class PrereqParser:
+    def __init__(self):
+        self._incomplete_patterns: list[re.Pattern] = _load_incomplete_patterns()
+
+
     # ----- Private Methods --------------------
     def _parse_result_div(self, result_div: Tag) -> dict:
         """
@@ -391,7 +421,10 @@ class PrereqParser:
         # CASE: ALL [COURSES]
         if _COMPLETE_ALL_OF_RE.search(raw) or _CONCURRENT_ALL_OF_RE.search(raw):
             codes = _extract_course_codes(result_div)
-            
+
+            if not codes:
+                raise ParseError(f"(Level 4) Expected course codes for ALL node in: {result_div}")
+
             return {
                 KEY_LOGIC    : SELECT_ALL,
                 KEY_CHILDREN : [{KEY_TYPE: TYPE_COURSE, KEY_CODE: c} for c in codes],
@@ -434,7 +467,7 @@ class PrereqParser:
         return {KEY_TYPE: TYPE_TEXT, KEY_TEXT: text}
 
 
-    def _parse_ruleview_li(self, li: Tag) -> dict:
+    def _parse_ruleview_li(self, li: Tag) -> dict | None:
         """
         Level 3
         -------
@@ -442,7 +475,9 @@ class PrereqParser:
         Finds the result div inside a `<li>` with the `"data-test"` attr and delegates its parsing 
         to `_parse_result_div()`.
 
-        Raises `ParseError` if the expected result div is not found.
+        Returns `None` if the result div matches a known incomplete Kuali data pattern.
+        Raises `ParseError` if the expected result div is not found or if an unexpected `ParseError` is 
+        raised by `_parse_result_div()`.
         """
 
         result_div = li.find("div", {"data-test": re.compile(r"-result$")})
@@ -450,7 +485,13 @@ class PrereqParser:
         if not result_div:
             raise ParseError(f"""(Level 3) Expected result div with "data-test" attr in <li>: {li}""")
 
-        return self._parse_result_div(result_div)
+        try:
+            return self._parse_result_div(result_div)
+        except ParseError:
+            if _is_incomplete_kuali_node(result_div, self._incomplete_patterns):
+                return None
+            
+            raise
 
 
     def _find_inner_ul(self, div: Tag) -> tuple[Tag, Tag | None]:
@@ -560,7 +601,10 @@ class PrereqParser:
                     continue
 
                 node, _, _ = self._parse_child(div_child)
-                children.append(node)
+
+                # Skip addition of child node if it is an incomplete type
+                if node is not None:
+                    children.append(node)
 
             return (self._wrap(children, logic, n), logic, n)
 
@@ -594,7 +638,7 @@ class PrereqParser:
         return {KEY_LOGIC: SELECT_ALL, KEY_CHILDREN: children}
 
 
-    def _parse_ul(self, ul: Tag, logic_override: str = SELECT_ALL, n_override: int = 1) -> dict:
+    def _parse_ul(self, ul: Tag, logic_override: str = SELECT_ALL, n_override: int = 1) -> dict | None:
         """
         Level 1
         -------
@@ -609,9 +653,10 @@ class PrereqParser:
         the entire `<ul>` to ANY.
         """
 
-        children : list[dict] = []
-        logic    : str        = logic_override
-        n        : int        = n_override
+        children            : list[dict] = []
+        logic               : str        = logic_override
+        n                   : int        = n_override
+        children_processed  : bool       = False
 
         for child in ul.children:
             # Skip non-tag elements (e.g. NavigableString newlines between tags)
@@ -620,18 +665,27 @@ class PrereqParser:
 
             # Delegate parsing of child tags down the pipeline
             node, child_logic, child_n = self._parse_child(child)
-            children.append(node)
+            children_processed = True
+
+            # Skip addition of child node if it is an incomplete type
+            if node is not None:
+                children.append(node)
 
             # CASE: Grouping logic override
             if child.name == "div" and child_logic == SELECT_ANY_N:
                 logic = SELECT_ANY_N
                 n     = child_n
 
+        # CASE: Incomplete node
+        if children_processed and not children:
+            return None
+
+        # DEFAULT CASE: Wrap children in ANY/ALL node
         return self._wrap(children, logic, n)
 
 
     # ----- Public Method --------------------
-    def parse(self, html: str) -> dict:
+    def parse(self, html: str) -> dict | None:
         """
         Parses raw prereq HTML into a nested prereq tree dict.
 
