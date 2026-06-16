@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 import requests
 from requests.adapters import HTTPAdapter
@@ -18,9 +19,10 @@ DEFAULT_USER_AGENT = "UVic PrereqMap Data Scraper"
 # ---- HTTP Client --------------------
 class HTTPClient:
     def __init__(self,
-                 user_agent: str = DEFAULT_USER_AGENT,
-                 pool_connections: int = 1,
-                 pool_maxsize: int = 1):
+                 user_agent       : str  = DEFAULT_USER_AGENT,
+                 pool_connections : int  = 1,
+                 pool_maxsize     : int  = 1,
+                 multithreaded    : bool = False):
         """
         HTTP client with retry logic and polite rate limiting.
 
@@ -29,14 +31,27 @@ class HTTPClient:
         - Shared session with connection pooling.
         - Minimum delay between requests to avoid hammering servers.
 
+        Two delay modes are supported:
+        - Single-threaded (default): One shared `_last_request_ts` enforces a global minimum delay of 
+          `REQUEST_DELAY_SECS` between all requests.
+        - Multi-threaded (`multithreaded=True`): Each thread maintains its own delay tracker via 
+          `threading.local()`. Threads must call `register_thread()` before making their first request. 
+          The delay is enforced independently per thread, allowing concurrent requests across threads to 
+          different endpoints without global serialization.
+
+        `pool_maxsize` should be set to match the number of concurrent threads when using multi-threaded 
+        mode.
+
         Intended for use as a context manager:
 
             with HTTPClient() as client:
                 response = client.get(url)
         """
 
-        self._session: requests.Session | None = None
-        self._last_request_ts: float = 0.0
+        self._session         : requests.Session | None = None
+        self._last_request_ts : float                   = 0.0
+        self._multithreaded   : bool                    = multithreaded
+        self._local           : threading.local         = threading.local()
 
         self._pool_connections = pool_connections
         self._pool_maxsize     = pool_maxsize
@@ -93,18 +108,53 @@ class HTTPClient:
 
     def _polite_delay(self):
         """
-        Enforces a minimum delay between requests.
-        Sleeps only if less than `REQUEST_DELAY_SECS` has elapsed since the
-        last request completed.
+        Enforces a minimum delay of `REQUEST_DELAY_SECS` before each request.
+
+        Modes:
+        ------
+        - Single-threaded: Reads and updates the shared `_last_request_ts`.
+        - Multi-threaded: Reads and updates the calling thread's own `_local.last_request_ts`, so 
+          each thread enforces its delay independently without blocking other threads.
         """
 
-        elapsed = time.time() - self._last_request_ts
+        if self._multithreaded:
+            if not hasattr(self._local, "last_request_ts"):
+                raise RuntimeError("Thread has not been registered. "
+                                   "Call register_thread() before making requests in multi-threaded mode.")
+            
+            last_ts: float = self._local.last_request_ts
+        else:
+            last_ts = self._last_request_ts
+
+        elapsed = time.time() - last_ts
 
         if elapsed < REQUEST_DELAY_SECS:
             time.sleep(REQUEST_DELAY_SECS - elapsed)
 
-    
+        now = time.time()
+
+        if self._multithreaded:
+            self._local.last_request_ts = now
+        else:
+            self._last_request_ts = now
+
+
     # ----- Public Methods --------------------
+    def register_thread(self):
+        """
+        Initialises a per-thread delay tracker for the calling thread.
+
+        Must be called once per worker thread before its first request when using multi-threaded mode. 
+        Raises `RuntimeError` if called in single-threaded mode.
+        """
+
+        if self._multithreaded:
+            self._local.last_request_ts = 0.0
+        else:
+            raise RuntimeError("HTTPClient instance is in single threaded mode. "
+                               "register_thread() should only be called in multi-threaded mode.")
+
+
     def get(self, url: str, **kwargs) -> requests.Response:
         """
         Performs a GET request with polite delay, retry, and timeout.
@@ -122,10 +172,8 @@ class HTTPClient:
         response = self._session.get(url, timeout=REQUEST_TIMEOUT_SECS, **kwargs)
         response.raise_for_status()
 
-        self._last_request_ts = time.time()  # Updated after request completes
-
         return response
-    
+
 
     def get_text(self, url: str) -> str:
         """
@@ -153,7 +201,7 @@ class HTTPClient:
             self._session         = None
             self._last_request_ts = 0.0
 
-    
+
     # ----- Context Manager --------------------
     def __enter__(self) -> HTTPClient:
         return self

@@ -23,7 +23,7 @@ _EXTRACT_CATALOG_ID_RE  = re.compile(r'''window\.catalogId\s*=\s*['"]([0-9a-f]{2
 
 
 # ----- Constants --------------------
-FETCH_WORKER_COUNT = 10
+FETCH_WORKER_COUNT = 20
 
 
 # ----- Data Classes --------------------
@@ -160,6 +160,8 @@ class CourseInfoFetcher:
         :param lock:    Lock protecting `counter`.
         :param total:   Total number of entries, used for progress display.
         """
+
+        self._client.register_thread()
 
         idx, entry = args
 

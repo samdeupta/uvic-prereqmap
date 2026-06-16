@@ -7,7 +7,7 @@ from sqlalchemy import delete
 from db.connection import db
 from db.schema import Course
 from shared.http_client import HTTPClient
-from .fetcher import CourseInfoFetcher
+from .fetcher import (CourseInfoFetcher, FETCH_WORKER_COUNT)
 from .prereq_parser import PrereqParser
 from .coreq_parser import CoreqParser
 
@@ -44,7 +44,7 @@ class CourseInfoScraper:
         On any failure the entire transaction is rolled back (no partial data writes).
         """
 
-        with HTTPClient("UVic Course Info Scraper") as client:
+        with HTTPClient("UVic Course Info Scraper", pool_maxsize=FETCH_WORKER_COUNT, multithreaded=True) as client:
             fetcher  = CourseInfoFetcher(client)
             courses  = fetcher.fetch_all_courses()
 
