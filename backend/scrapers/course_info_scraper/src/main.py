@@ -44,7 +44,9 @@ class CourseInfoScraper:
         On any failure the entire transaction is rolled back (no partial data writes).
         """
 
-        with HTTPClient("UVic Course Info Scraper", pool_maxsize=FETCH_WORKER_COUNT, multithreaded=True) as client:
+        with HTTPClient("UVic Course Info Scraper", pool_maxsize=FETCH_WORKER_COUNT+1, multithreaded=True) as client:
+            client.register_thread()
+
             fetcher  = CourseInfoFetcher(client)
             courses  = fetcher.fetch_all_courses()
 
