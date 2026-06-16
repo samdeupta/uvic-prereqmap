@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from shared.http_client import HTTPClient
@@ -8,7 +10,7 @@ from shared.endpoints import (
     CALENDAR_URL,
     subject_codes_url,
     all_courses_url,
-    course_detail_url,
+    course_detail_url
 )
 from shared.errors import InformationFetchError
 
@@ -18,6 +20,10 @@ _HEX24_VALIDATION_RE    = re.compile(r'^[0-9a-f]{24}$', re.IGNORECASE)
 _HEX24_SEARCH_RE        = re.compile(r'[0-9a-f]{24}', re.IGNORECASE)
 _EXTRACT_CATALOG_ID_RE  = re.compile(r'''window\.catalogId\s*=\s*['"]([0-9a-f]{24})['"]''',
                                      re.IGNORECASE)
+
+
+# ----- Constants --------------------
+FETCH_WORKER_COUNT = 10
 
 
 # ----- Data Classes --------------------
@@ -131,6 +137,55 @@ class CourseInfoFetcher:
             return
 
         raise InformationFetchError("Could not find a valid 24-hex catalog ID in the UVic calendar page.")
+    
+
+    def _fetch_one(self, args: tuple[int, dict], courses: list[Course | None], counter: list[int], 
+                   lock: threading.Lock, total: int):
+        """
+        Worker function for `fetch_all_courses`. Extracts course fields from a raw Kuali API entry, 
+        fetches its details, and writes the result to its pre-assigned index in `courses`. 
+        
+        Raises `InformationFetchError` if required fields are missing.
+
+        `counter` is a single-element list used as a mutable integer across threads. It is incremented 
+        under `lock` to protect against race conditions.
+
+        Kuali API raw JSON return format:
+            [{ "__catalogCourseId": `CODE`, "pid": `PID`, "title": `NAME` }, ...]
+
+        :param args:    `(idx, entry)` tuple where `idx` is the course's position in
+                        the original API response and `entry` is the raw Kuali dict.
+        :param courses: Shared pre-allocated output list.
+        :param counter: Single-element list holding the completed course count.
+        :param lock:    Lock protecting `counter`.
+        :param total:   Total number of entries, used for progress display.
+        """
+
+        idx, entry = args
+
+        code = (entry.get("__catalogCourseId") or "").strip().upper()
+        name = (entry.get("title")             or "").strip()
+        pid  = (entry.get("pid")               or "").strip()
+
+        if not (code and name and pid):
+            raise InformationFetchError(f"Kuali API response does not contain required fields: {entry}")
+
+        credits, prereq_html, coreq_html, conflict_html = self._fetch_course_details(pid)
+
+        courses[idx] = Course(
+            code          = code,
+            name          = name,
+            credits       = credits,
+            prereq_html   = prereq_html,
+            coreq_html    = coreq_html,
+            conflict_html = conflict_html
+        )
+
+        with lock:
+            counter[0] += 1
+
+            if counter[0] % 10 == 0:
+                print(f"Scraped {counter[0]}/{total} courses ({int(counter[0] / total * 100)}%)")
 
 
     # ----- Public Methods --------------------
@@ -164,43 +219,32 @@ class CourseInfoFetcher:
 
     def fetch_all_courses(self) -> list[Course]:
         """
-        Fetches all courses and their details from the Kuali catalog API.
+        Fetches all courses and their details from the Kuali catalog API using a thread pool of size 
+        `FETCH_WORKER_COUNT`.
 
-        Kuali API raw JSON return format:
-            [{ "__catalogCourseId": `CODE`, "pid": `PID`, "title": `NAME` }, ...]
+        Course order in the returned list is guaranteed to match the order returned by the Kuali API 
+        regardless of thread scheduling. Each course is assigned a fixed index before threading begins 
+        and written to that index on completion.
         """
 
+        # Single-threaded section: Fetching the list of courses
         url     = all_courses_url(self._catalog_id)
         data    : list[dict] = self._client.get_json(url)
+        total   = len(data)
 
-        courses = []
+        # Multi-threaded section: Fetching course details
+        courses : list[Course | None] = [None] * total
+        counter = [0]
+        lock    = threading.Lock()
 
         print("Fetching course data from Kuali API...")
 
-        for i,entry in enumerate(data):
-            code    = (entry.get("__catalogCourseId") or "").strip().upper()
-            name    = (entry.get("title")             or "").strip()
-            pid     = (entry.get("pid")               or "").strip()
+        with ThreadPoolExecutor(max_workers=FETCH_WORKER_COUNT) as executor:
+            for i, entry in enumerate(data):
+                executor.submit(self._fetch_one, (i, entry), courses, counter, lock, total)
 
-            if not (code and name and pid):
-                continue
+        courses = [c for c in courses if c is not None]
 
-            # Progress printout every 10 courses
-            if i % 10 == 0:
-                print(f"Scraped {i+1}/{len(data)} courses ({int((i+1)/len(data)*100)}%)")
-
-            # Fetch course details
-            credits, prereq_html, coreq_html, conflict_html = self._fetch_course_details(pid)
-
-            courses.append(Course(
-                code            = code, 
-                name            = name, 
-                credits         = credits, 
-                prereq_html     = prereq_html, 
-                coreq_html      = coreq_html, 
-                conflict_html   = conflict_html
-            ))
-        
-        print(f"\nFetched {len(courses)} courses.\n")  # Newline after progress printout
+        print(f"\nFetched {len(courses)} courses.\n")
 
         return courses
