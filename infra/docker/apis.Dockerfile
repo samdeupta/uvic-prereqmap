@@ -10,4 +10,4 @@ COPY backend/db db
 
 EXPOSE 8000
 
-CMD ["python", "-u" "start_all.py"]
+CMD ["python", "-u", "start_all.py"]
