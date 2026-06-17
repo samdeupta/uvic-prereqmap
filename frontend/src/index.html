@@ -1,0 +1,1161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PrereqMap — UI Prototype</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.28.4/babel.min.js"></script>
+
+    <style>
+      :root {
+        --bg: #eef1f6;
+        --grid-dot: #d2dae8;
+        --ink: #1b2430;
+        --ink-soft: #5b6472;
+        --panel: #ffffff;
+        --border: #c9d2e0;
+        --accent-all: #3454d1;
+        --accent-any: #c8842a;
+        --accent-edge: #2f9c8f;
+        --accent-target: #c9415a;
+        --mono:
+          ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
+        --sans:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--sans);
+      }
+      #root {
+        height: 100%;
+      }
+
+      .app {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+
+      /* ---------- Header ---------- */
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        padding: 14px 22px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+        flex-wrap: wrap;
+      }
+      .brand {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .brand .eyebrow {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        color: var(--ink-soft);
+      }
+      .brand .word {
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .brand .word b {
+        color: var(--accent-all);
+      }
+
+      .search-form {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+        min-width: 280px;
+      }
+      .search-form input {
+        flex: 1;
+        max-width: 260px;
+        padding: 9px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-family: var(--mono);
+        font-size: 14px;
+        letter-spacing: 0.03em;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      .search-form input:focus {
+        outline: none;
+        border-color: var(--accent-all);
+        background: var(--panel);
+      }
+      .search-form button {
+        padding: 9px 16px;
+        border-radius: 8px;
+        border: none;
+        background: var(--accent-all);
+        color: white;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .search-form button:hover {
+        background: #2a44b3;
+      }
+
+      .chips {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .chips span.label {
+        font-size: 11px;
+        color: var(--ink-soft);
+        margin-right: 2px;
+      }
+      .chip {
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 5px 9px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: var(--ink-soft);
+        cursor: pointer;
+      }
+      .chip:hover {
+        border-color: var(--accent-all);
+        color: var(--accent-all);
+      }
+
+      /* ---------- Body ---------- */
+      .body {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+
+      .legend {
+        width: 196px;
+        flex-shrink: 0;
+        padding: 18px 16px;
+        border-right: 1px solid var(--border);
+        background: var(--panel);
+        overflow-y: auto;
+      }
+      .legend h3 {
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        margin: 0 0 12px;
+      }
+      .legend-item {
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+        margin-bottom: 14px;
+      }
+      .legend-swatch {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+      .legend-item p {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--ink-soft);
+      }
+      .legend-item strong {
+        color: var(--ink);
+        display: block;
+        font-size: 12.5px;
+        margin-bottom: 1px;
+      }
+
+      .canvas-wrap {
+        flex: 1;
+        min-height: 0;
+        position: relative;
+        overflow: hidden;
+        cursor: grab;
+        background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+        background-size: 22px 22px;
+      }
+      .canvas-wrap.dragging {
+        cursor: grabbing;
+      }
+      .canvas-inner {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+      }
+
+      .toolbar {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        z-index: 5;
+      }
+      .toolbar button {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        font-size: 16px;
+        cursor: pointer;
+        color: var(--ink-soft);
+        line-height: 1;
+      }
+      .toolbar button:hover {
+        color: var(--accent-all);
+        border-color: var(--accent-all);
+      }
+
+      .status-banner {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        z-index: 5;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 9px 13px;
+        font-size: 13px;
+        max-width: 360px;
+        color: var(--ink-soft);
+      }
+      .status-banner.error {
+        border-color: var(--accent-target);
+        color: var(--accent-target);
+      }
+
+      /* ---------- Nodes ---------- */
+      .node-slot {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .card {
+        width: 100%;
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: var(--panel);
+        border: 1.5px solid var(--border);
+        box-shadow: 0 1px 2px rgba(20, 30, 50, 0.06);
+      }
+      .card-course {
+        border-color: var(--accent-all);
+        cursor: pointer;
+        transition: transform 0.08s ease;
+      }
+      .card-course:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(20, 30, 50, 0.12);
+      }
+      .card-course.is-target {
+        border-color: var(--accent-target);
+        border-width: 2px;
+        background: #fff5f6;
+      }
+      .card-course .code {
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: 0.02em;
+      }
+      .card-course .name {
+        font-size: 11.5px;
+        color: var(--ink-soft);
+        margin-top: 2px;
+        line-height: 1.3;
+      }
+      .card-course .credits {
+        display: inline-block;
+        margin-top: 6px;
+        font-size: 10px;
+        font-family: var(--mono);
+        color: var(--ink-soft);
+        background: var(--bg);
+        border-radius: 4px;
+        padding: 1px 6px;
+      }
+
+      .pill {
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: white;
+        padding: 6px 13px;
+        border-radius: 999px;
+        text-align: center;
+      }
+      .pill-all {
+        background: var(--accent-all);
+      }
+      .pill-any {
+        background: var(--accent-any);
+      }
+
+      .card-units {
+        border-color: var(--accent-any);
+        border-style: solid;
+      }
+      .card-units .label {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.1em;
+        color: var(--accent-any);
+        font-weight: 700;
+      }
+      .card-units .detail {
+        font-size: 12px;
+        margin-top: 3px;
+        line-height: 1.35;
+      }
+      .card-units .codes {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-soft);
+        margin-top: 4px;
+        line-height: 1.4;
+      }
+
+      .card-text {
+        border-style: dashed;
+        border-color: var(--ink-soft);
+      }
+      .card-text .body {
+        font-size: 11.5px;
+        color: var(--ink-soft);
+        line-height: 1.4;
+        font-style: italic;
+      }
+
+      .empty-state,
+      .error-state,
+      .loading-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        gap: 8px;
+        color: var(--ink-soft);
+        text-align: center;
+        padding: 20px;
+      }
+      .empty-state h2 {
+        color: var(--ink);
+        font-size: 16px;
+        margin: 0;
+      }
+      .empty-state p,
+      .error-state p {
+        font-size: 13px;
+        max-width: 360px;
+        margin: 0;
+      }
+
+      .no-prereq-note {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        top: 110px;
+        font-size: 12px;
+        color: var(--ink-soft);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 12px;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+      const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+      const API_BASE = "http://localhost:8000/course-info-api";
+
+      /* ---------------------------------------------------------------------- */
+      /* Tree helpers                                                            */
+      /* ---------------------------------------------------------------------- */
+
+      function normalizeCode(raw) {
+        return raw.trim().toUpperCase().replace(/\s+/g, "");
+      }
+
+      function subjectOf(code) {
+        const m = code.match(/^[A-Z]+/);
+        return m ? m[0] : code;
+      }
+
+      function nodeKind(n) {
+        if (!n) return "empty";
+        if (n.logic) return "logic";
+        if (n.type === "course") return "course";
+        // The deployed API still emits the pre-refactor "units_from" type name
+        // for what the parser schema now calls "units_from_course".
+        if (n.type === "units_from_course" || n.type === "units_from")
+          return "units_course";
+        if (n.type === "units_from_subject") return "units_subject";
+        if (n.type === "text") return "text";
+        return "unknown";
+      }
+
+      function childrenOf(n) {
+        return n && n.logic ? n.children || [] : [];
+      }
+
+      function collectCourseCodes(n, set) {
+        if (!n) return;
+        const kind = nodeKind(n);
+        if (kind === "course") set.add(n.code);
+        else if (kind === "units_course")
+          (n.courses || []).forEach((c) => set.add(c));
+        else if (kind === "logic")
+          (n.children || []).forEach((c) => collectCourseCodes(c, set));
+      }
+
+      function lvlRangeText(lvlRange) {
+        if (!lvlRange) return "";
+        const { min, max } = lvlRange;
+        if (min === -1 && max === -1) return "";
+        if (max === -1) return `${min}+ level`;
+        if (min === max) return `${min} level`;
+        return `${min}–${max} level`;
+      }
+
+      /* ---------------------------------------------------------------------- */
+      /* Layout — simple tidy tree (leaves placed left-to-right, parents         */
+      /* centered over their children)                                          */
+      /* ---------------------------------------------------------------------- */
+
+      const SLOT_W = 200;
+      const SLOT_H = 92;
+      const GAP_X = 26;
+      const GAP_Y = 64;
+
+      function buildLayout(rootCode, prereqsTree) {
+        const positions = {};
+        const edges = [];
+        let leafIndex = 0;
+        let counter = 0;
+
+        function visit(node, depth, parentId) {
+          const id = "n" + counter++;
+          const kids = childrenOf(node);
+          let x;
+          if (kids.length === 0) {
+            x = leafIndex * (SLOT_W + GAP_X);
+            leafIndex += 1;
+          } else {
+            const childIds = kids.map((k) => visit(k, depth + 1, id));
+            const xs = childIds.map((cid) => positions[cid].x);
+            x = (Math.min(...xs) + Math.max(...xs)) / 2;
+          }
+          positions[id] = { x, y: depth * (SLOT_H + GAP_Y), node };
+          if (parentId)
+            edges.push({
+              id: parentId + "_" + id,
+              sourceId: parentId,
+              targetId: id,
+            });
+          return id;
+        }
+
+        const rootId = "n" + counter++;
+        if (prereqsTree) {
+          const childId = visit(prereqsTree, 1, rootId);
+          positions[rootId] = {
+            x: positions[childId].x,
+            y: 0,
+            node: { type: "course", code: rootCode },
+            isTarget: true,
+          };
+          edges.push({
+            id: rootId + "_" + childId,
+            sourceId: rootId,
+            targetId: childId,
+          });
+        } else {
+          positions[rootId] = {
+            x: 0,
+            y: 0,
+            node: { type: "course", code: rootCode },
+            isTarget: true,
+          };
+        }
+
+        const xs = Object.values(positions).map((p) => p.x);
+        const minX = Math.min(...xs);
+        Object.values(positions).forEach((p) => (p.x -= minX));
+        const maxX = Math.max(...Object.values(positions).map((p) => p.x));
+        const maxY = Math.max(...Object.values(positions).map((p) => p.y));
+
+        return {
+          positions,
+          edges,
+          width: maxX + SLOT_W,
+          height: maxY + SLOT_H,
+        };
+      }
+
+      function edgePath(p1, p2) {
+        const x1 = p1.x + SLOT_W / 2,
+          y1 = p1.y + SLOT_H;
+        const x2 = p2.x + SLOT_W / 2,
+          y2 = p2.y;
+        const midY = (y1 + y2) / 2;
+        return `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+      }
+
+      /* ---------------------------------------------------------------------- */
+      /* Data fetching                                                           */
+      /* ---------------------------------------------------------------------- */
+
+      async function readJsonResponse(res) {
+        const text = await res.text();
+
+        if (!text) {
+          return null;
+        }
+
+        try {
+          return JSON.parse(text);
+        } catch {
+          throw new Error(`INVALID_JSON: ${text.slice(0, 200)}`);
+        }
+      }
+
+      function normalizePrereqs(value) {
+        if (!value) {
+          return null;
+        }
+
+        // Some database/API configurations return JSON columns as strings.
+        if (typeof value === "string") {
+          try {
+            return JSON.parse(value);
+          } catch (err) {
+            console.error("Could not parse prerequisites:", value, err);
+            return null;
+          }
+        }
+
+        return value;
+      }
+
+      async function fetchCourse(code) {
+        const url = `${API_BASE}/courses/${encodeURIComponent(code)}`;
+
+        console.log("Fetching course:", url);
+
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        });
+
+        const data = await readJsonResponse(res);
+
+        console.log("Course status:", res.status);
+        console.log("Course response:", data);
+
+        if (res.status === 404) {
+          throw new Error("NOT_FOUND");
+        }
+
+        if (!res.ok) {
+          throw new Error(`HTTP_${res.status}: ${JSON.stringify(data)}`);
+        }
+
+        if (!data || typeof data !== "object") {
+          throw new Error("INVALID_COURSE_RESPONSE");
+        }
+
+        return {
+          ...data,
+          prereqs: normalizePrereqs(data.prereqs),
+        };
+      }
+
+      async function fetchNamesForSubjects(subjects) {
+        const map = {};
+
+        await Promise.all(
+          subjects.map(async (subject) => {
+            try {
+              // The docs specify /courses/ with a trailing slash.
+              const url =
+                `${API_BASE}/courses/` +
+                `?subject=${encodeURIComponent(subject)}` +
+                `&fields=code,name,credits`;
+
+              console.log("Fetching subject:", url);
+
+              const res = await fetch(url, {
+                headers: {
+                  Accept: "application/json",
+                },
+              });
+
+              if (!res.ok) {
+                console.warn(
+                  `Subject lookup failed for ${subject}:`,
+                  res.status,
+                );
+                return;
+              }
+
+              const data = await readJsonResponse(res);
+
+              if (!Array.isArray(data)) {
+                console.warn(
+                  `Expected course array for ${subject}, received:`,
+                  data,
+                );
+                return;
+              }
+
+              data.forEach((course) => {
+                if (course?.code) {
+                  map[course.code] = course;
+                }
+              });
+            } catch (err) {
+              console.warn(`Subject lookup failed for ${subject}:`, err);
+            }
+          }),
+        );
+
+        return map;
+      }
+
+      /* ---------------------------------------------------------------------- */
+      /* Node rendering                                                          */
+      /* ---------------------------------------------------------------------- */
+
+      function NodeCard({ pos, names, onSelectCourse }) {
+        const n = pos.node;
+        const kind = pos.isTarget ? "course" : nodeKind(n);
+
+        if (kind === "course") {
+          const info = names[n.code];
+          return (
+            <div
+              className={
+                "card card-course" + (pos.isTarget ? " is-target" : "")
+              }
+              onClick={() => onSelectCourse(n.code)}
+            >
+              <div className="code">{n.code}</div>
+              <div className="name">
+                {info ? info.name : "Course details unavailable"}
+              </div>
+              {info && info.credits != null && (
+                <span className="credits">{info.credits} units</span>
+              )}
+            </div>
+          );
+        }
+
+        if (kind === "logic") {
+          const label = n.logic === "ANY" ? `ANY ${n.n || 1} OF` : "ALL OF";
+          return (
+            <div
+              className={
+                "pill " + (n.logic === "ANY" ? "pill-any" : "pill-all")
+              }
+            >
+              {label}
+            </div>
+          );
+        }
+
+        if (kind === "units_course") {
+          return (
+            <div className="card card-units">
+              <div className="label">UNITS</div>
+              <div className="detail">{n.units} units from</div>
+              <div className="codes">{(n.courses || []).join(", ")}</div>
+            </div>
+          );
+        }
+
+        if (kind === "units_subject") {
+          const subj =
+            n.subjects && n.subjects.length
+              ? n.subjects.join("/")
+              : "any subject";
+          const lvl = lvlRangeText(n.lvl_range);
+          return (
+            <div className="card card-units">
+              <div className="label">UNITS</div>
+              <div className="detail">
+                {n.units} units — {subj}
+                {lvl ? `, ${lvl}` : ""}
+              </div>
+            </div>
+          );
+        }
+
+        if (kind === "text") {
+          return (
+            <div className="card card-text">
+              <div className="body">{n.text}</div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="card card-text">
+            <div className="body">Unrecognized requirement node</div>
+          </div>
+        );
+      }
+
+      /* ---------------------------------------------------------------------- */
+      /* Graph canvas — pan + zoom                                               */
+      /* ---------------------------------------------------------------------- */
+
+      function GraphCanvas({ layout, names, onSelectCourse, noPrereqs }) {
+        const wrapRef = useRef(null);
+        const [view, setView] = useState({ zoom: 1, panX: 24, panY: 24 });
+        const dragRef = useRef(null);
+
+        const fitView = useCallback(() => {
+          const wrap = wrapRef.current;
+          if (!wrap || !layout) return;
+          const cw = wrap.clientWidth,
+            ch = wrap.clientHeight;
+          const zoom = Math.min(
+            1,
+            (cw - 48) / layout.width,
+            (ch - 48) / layout.height,
+          );
+          const z = Math.max(0.25, zoom);
+          setView({
+            zoom: z,
+            panX: Math.max(24, (cw - layout.width * z) / 2),
+            panY: 24,
+          });
+        }, [layout]);
+
+        useEffect(() => {
+          fitView();
+        }, [fitView]);
+
+        const onWheel = (e) => {
+          e.preventDefault();
+          setView((v) => {
+            const next = Math.min(
+              2,
+              Math.max(0.25, v.zoom - e.deltaY * 0.0015),
+            );
+            return { ...v, zoom: next };
+          });
+        };
+
+        const onMouseDown = (e) => {
+          dragRef.current = {
+            startX: e.clientX,
+            startY: e.clientY,
+            panX: view.panX,
+            panY: view.panY,
+          };
+        };
+        const onMouseMove = (e) => {
+          if (!dragRef.current) return;
+          const { startX, startY, panX, panY } = dragRef.current;
+          setView((v) => ({
+            ...v,
+            panX: panX + (e.clientX - startX),
+            panY: panY + (e.clientY - startY),
+          }));
+        };
+        const endDrag = () => {
+          dragRef.current = null;
+        };
+
+        if (!layout) return null;
+
+        return (
+          <div
+            className={"canvas-wrap" + (dragRef.current ? " dragging" : "")}
+            ref={wrapRef}
+            onWheel={onWheel}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={endDrag}
+            onMouseLeave={endDrag}
+          >
+            <div className="toolbar">
+              <button
+                onClick={() =>
+                  setView((v) => ({ ...v, zoom: Math.min(2, v.zoom + 0.15) }))
+                }
+                title="Zoom in"
+              >
+                +
+              </button>
+              <button
+                onClick={() =>
+                  setView((v) => ({
+                    ...v,
+                    zoom: Math.max(0.25, v.zoom - 0.15),
+                  }))
+                }
+                title="Zoom out"
+              >
+                −
+              </button>
+              <button onClick={fitView} title="Fit to view">
+                ⤢
+              </button>
+            </div>
+
+            {noPrereqs && (
+              <div className="status-banner">
+                No prerequisites on record — this course is open to take.
+              </div>
+            )}
+
+            <div
+              className="canvas-inner"
+              style={{
+                transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`,
+              }}
+            >
+              <svg
+                width={layout.width}
+                height={layout.height}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  overflow: "visible",
+                }}
+              >
+                {layout.edges.map((e) => (
+                  <path
+                    key={e.id}
+                    d={edgePath(
+                      layout.positions[e.sourceId],
+                      layout.positions[e.targetId],
+                    )}
+                    fill="none"
+                    stroke="var(--accent-edge)"
+                    strokeWidth="1.75"
+                  />
+                ))}
+              </svg>
+              {Object.entries(layout.positions).map(([id, pos]) => (
+                <div
+                  key={id}
+                  className="node-slot"
+                  style={{
+                    left: pos.x,
+                    top: pos.y,
+                    width: SLOT_W,
+                    height: SLOT_H,
+                  }}
+                >
+                  <NodeCard
+                    pos={pos}
+                    names={names}
+                    onSelectCourse={onSelectCourse}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      /* ---------------------------------------------------------------------- */
+      /* Legend                                                                   */
+      /* ---------------------------------------------------------------------- */
+
+      function Legend() {
+        const items = [
+          {
+            color: "var(--accent-target)",
+            title: "Target course",
+            text: "The course you searched for.",
+          },
+          {
+            color: "var(--accent-all)",
+            title: "ALL of",
+            text: "Every child requirement must be met.",
+          },
+          {
+            color: "var(--accent-any)",
+            title: "ANY N of",
+            text: "At least N of the child requirements must be met.",
+          },
+          {
+            color: "var(--accent-all)",
+            title: "Course",
+            text: "A specific prerequisite course.",
+          },
+          {
+            color: "var(--accent-any)",
+            title: "Units rule",
+            text: "A units-based requirement, e.g. 3 units from a subject or course list.",
+          },
+          {
+            color: "var(--ink-soft)",
+            title: "Free-text rule",
+            text: "Standing, GPA, or permission — can't be expressed as a course.",
+          },
+        ];
+        return (
+          <div className="legend">
+            <h3>Legend</h3>
+            {items.map((it) => (
+              <div className="legend-item" key={it.title}>
+                <div
+                  className="legend-swatch"
+                  style={{ background: it.color }}
+                />
+                <p>
+                  <strong>{it.title}</strong>
+                  {it.text}
+                </p>
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      /* ---------------------------------------------------------------------- */
+      /* App                                                                      */
+      /* ---------------------------------------------------------------------- */
+
+      const EXAMPLES = ["ANTH200", "ASTR250", "ART300", "AHVS491B"];
+
+      function App() {
+        const [inputValue, setInputValue] = useState("");
+        const [rootCode, setRootCode] = useState(null);
+        const [course, setCourse] = useState(null);
+        const [names, setNames] = useState({});
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState(null);
+
+        useEffect(() => {
+          if (!rootCode) {
+            return;
+          }
+
+          let cancelled = false;
+
+          async function load() {
+            setLoading(true);
+            setError(null);
+            setCourse(null);
+            setNames({});
+
+            try {
+              const result = await fetchCourse(rootCode);
+
+              if (cancelled) {
+                return;
+              }
+
+              // Render before making optional name requests.
+              setCourse(result);
+              setNames({
+                [result.code || rootCode]: result,
+              });
+              setLoading(false);
+
+              const codes = new Set([rootCode]);
+              collectCourseCodes(result.prereqs, codes);
+
+              const subjects = [
+                ...new Set(
+                  [...codes]
+                    .filter(
+                      (code) => typeof code === "string" && code.length > 0,
+                    )
+                    .map(subjectOf),
+                ),
+              ];
+
+              const nameMap = await fetchNamesForSubjects(subjects);
+
+              if (!cancelled) {
+                setNames((current) => ({
+                  ...current,
+                  ...nameMap,
+                }));
+              }
+            } catch (err) {
+              console.error("Course load failed:", err);
+
+              if (cancelled) {
+                return;
+              }
+
+              setError(err.message === "NOT_FOUND" ? "not_found" : err.message);
+              setLoading(false);
+            }
+          }
+
+          load();
+
+          return () => {
+            cancelled = true;
+          };
+        }, [rootCode]);
+
+        const layout = useMemo(() => {
+          if (!course) {
+            return null;
+          }
+
+          try {
+            return buildLayout(rootCode, course.prereqs);
+          } catch (err) {
+            console.error(
+              "Could not build prerequisite layout:",
+              course.prereqs,
+              err,
+            );
+
+            // At least display the target course.
+            return buildLayout(rootCode, null);
+          }
+        }, [course, rootCode]);
+
+        const submit = (e) => {
+          e.preventDefault();
+          const code = normalizeCode(inputValue);
+          if (code) setRootCode(code);
+        };
+
+        const onSelectCourse = (code) => {
+          setInputValue(code);
+          setRootCode(code);
+        };
+
+        return (
+          <div className="app">
+            <div className="header">
+              <div className="brand">
+                <span className="eyebrow">UVIC</span>
+                <span className="word">
+                  Prereq<b>Map</b>
+                </span>
+              </div>
+              <form className="search-form" onSubmit={submit}>
+                <input
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  placeholder="e.g. CSC225"
+                />
+                <button type="submit">Visualize</button>
+              </form>
+              <div className="chips">
+                <span className="label">Try:</span>
+                {EXAMPLES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className="chip"
+                    onClick={() => onSelectCourse(c)}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="body">
+              <Legend />
+              <div
+                style={{
+                  flex: 1,
+                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
+                  minWidth: 0,
+                  minHeight: 0,
+                }}
+              >
+                {!rootCode && (
+                  <div className="empty-state">
+                    <h2>Search a course to explore its prerequisite tree</h2>
+                    <p>
+                      Type a course code above, or click one of the examples —
+                      then click any course node in the graph to jump to its own
+                      prerequisites.
+                    </p>
+                  </div>
+                )}
+                {rootCode && loading && (
+                  <div className="loading-state">
+                    <p>Loading {rootCode}…</p>
+                  </div>
+                )}
+                {rootCode && !loading && error && (
+                  <div className="error-state">
+                    <p>
+                      {error === "not_found"
+                        ? `Couldn't find "${rootCode}".`
+                        : `Request failed: ${error}`}
+                    </p>
+                  </div>
+                )}
+                {rootCode && !loading && !error && layout && (
+                  <GraphCanvas
+                    layout={layout}
+                    names={names}
+                    onSelectCourse={onSelectCourse}
+                    noPrereqs={!course.prereqs}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>
