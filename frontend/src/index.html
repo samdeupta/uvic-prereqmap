@@ -256,15 +256,129 @@
         color: var(--accent-target);
       }
 
+      /* ---------- ANY-N option groups ---------- */
+      .any-group {
+        position: absolute;
+        border: 2px solid var(--accent-any);
+        border-radius: 14px;
+        background: #fffaf1;
+        pointer-events: none;
+        z-index: 0;
+      }
+      .any-group-label {
+        position: absolute;
+        top: -15px;
+        left: 14px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 3px 7px 3px 9px;
+        border-radius: 999px;
+        background: var(--accent-any);
+        color: white;
+        font-family: var(--mono);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        white-space: nowrap;
+        pointer-events: auto;
+      }
+      .any-group-toggle {
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.22);
+        color: white;
+        cursor: pointer;
+        font-size: 11px;
+        line-height: 1;
+      }
+      .any-group-toggle:hover {
+        background: rgba(255, 255, 255, 0.36);
+      }
+      .any-option-selector {
+        position: absolute;
+        top: 50%;
+        right: -11px;
+        transform: translateY(-50%);
+        width: 22px;
+        height: 22px;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1.5px solid var(--accent-any);
+        border-radius: 50%;
+        background: var(--panel);
+        color: var(--accent-any);
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+        box-shadow: 0 1px 4px rgba(20, 30, 50, 0.12);
+      }
+      .any-option-selector.selected {
+        background: var(--accent-any);
+        color: white;
+      }
+      .any-option-selector:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .any-group > .any-option-selector {
+        pointer-events: auto;
+      }
+      .any-group.nested-option {
+        background: #fffaf1;
+      }
+      .any-group.nested-option > .any-group-label {
+        left: 28px;
+      }
+
       /* ---------- Nodes ---------- */
       .node-slot {
         position: absolute;
         display: flex;
         align-items: center;
         justify-content: center;
+        overflow: visible;
+      }
+
+      .selector-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 0;
+        pointer-events: none;
+        z-index: 1000000;
+        overflow: visible;
+        transform-origin: 0 0;
+      }
+
+      .selector-layer .any-option-selector {
+        pointer-events: auto;
+        right: auto;
+        top: auto;
+        z-index: 1;
+        background: #ffffff;
+        box-shadow:
+          0 0 0 3px #fffaf1,
+          0 2px 6px rgba(20, 30, 50, 0.22);
+        transform: translate(-50%, -50%);
+      }
+      .selector-layer .any-option-selector.selected {
+        background: var(--accent-any);
+        color: white;
       }
 
       .card {
+        position: relative;
+        z-index: auto;
         width: 100%;
         border-radius: 10px;
         padding: 10px 12px;
@@ -286,16 +400,48 @@
         border-width: 2px;
         background: #fff5f6;
       }
+      .card-course {
+        padding: 0;
+        overflow: hidden;
+      }
+      .course-summary {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 10px;
+        padding: 10px 12px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        text-align: left;
+      }
+      .course-summary:hover {
+        background: rgba(52, 84, 209, 0.05);
+      }
       .card-course .code {
         font-family: var(--mono);
         font-weight: 700;
         font-size: 14px;
         letter-spacing: 0.02em;
       }
+      .course-chevron {
+        color: var(--ink-soft);
+        font-size: 12px;
+        transition: transform 0.15s ease;
+      }
+      .card-course.expanded .course-chevron {
+        transform: rotate(180deg);
+      }
+      .course-details {
+        padding: 0 12px 11px;
+        border-top: 1px solid var(--border);
+      }
       .card-course .name {
         font-size: 11.5px;
         color: var(--ink-soft);
-        margin-top: 2px;
+        margin-top: 9px;
         line-height: 1.3;
       }
       .card-course .credits {
@@ -307,6 +453,23 @@
         background: var(--bg);
         border-radius: 4px;
         padding: 1px 6px;
+      }
+      .course-expand-prereqs {
+        display: block;
+        width: 100%;
+        margin-top: 9px;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--panel);
+        color: var(--accent-all);
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .course-expand-prereqs:hover {
+        border-color: var(--accent-all);
+        background: rgba(52, 84, 209, 0.05);
       }
 
       .pill {
@@ -449,6 +612,20 @@
           (n.children || []).forEach((c) => collectCourseCodes(c, set));
       }
 
+      function collectCoursesFromAllBranches(node, set, insideAll = false) {
+        if (!node) return;
+        const kind = nodeKind(node);
+        if (kind === "course") {
+          if (insideAll && node.code) set.add(node.code);
+          return;
+        }
+        if (kind !== "logic" || node.logic === "ANY") return;
+        const nextInsideAll = insideAll || node.logic === "ALL";
+        (node.children || []).forEach((child) =>
+          collectCoursesFromAllBranches(child, set, nextInsideAll),
+        );
+      }
+
       function lvlRangeText(lvlRange) {
         if (!lvlRange) return "";
         const { min, max } = lvlRange;
@@ -459,34 +636,379 @@
       }
 
       /* ---------------------------------------------------------------------- */
-      /* Layout — simple tidy tree (leaves placed left-to-right, parents         */
-      /* centered over their children)                                          */
+      /* Layout — horizontal tidy tree (root on the left, dependencies expand    */
+      /* toward the right; parents are centered vertically over their children) */
       /* ---------------------------------------------------------------------- */
 
       const SLOT_W = 200;
-      const SLOT_H = 92;
-      const GAP_X = 26;
+      const SLOT_H = 92; // fallback before a node has been measured
+      const COURSE_COLLAPSED_H = 40;
+      const GAP_X = 64;
       const GAP_Y = 64;
+      const ANY_GROUP_GAP_Y = 20;
 
-      function buildLayout(rootCode, prereqsTree) {
+      function estimatedNodeHeight(node) {
+        const kind = nodeKind(node);
+        if (kind === "course") return COURSE_COLLAPSED_H;
+        if (kind === "logic") return 30;
+        return 72;
+      }
+
+      function buildLayout(
+        rootCode,
+        prereqsTree,
+        expandedCourses = {},
+        anySelections = {},
+        openAnyGroups = {},
+        nodeHeights = {},
+      ) {
         const positions = {};
         const edges = [];
-        let leafIndex = 0;
+        const groups = [];
+        // Reuse non-selectable course nodes by course code so prerequisite
+        // branches from different visible courses can converge on one node.
+        // Selectable ANY options remain separate because each occurrence owns
+        // its own selection control and approved interaction state.
+        const sharedCourseNodes = new Map();
+        // A course can appear as a selectable option more than once, but its
+        // expanded prerequisite requirement is still the same requirement.
+        // Reuse those requirement groups by course + relative prerequisite path.
+        const sharedRequirementGroups = new Map();
+        let nextLeafY = 0;
         let counter = 0;
 
-        function visit(node, depth, parentId) {
-          const id = "n" + counter++;
-          const kids = childrenOf(node);
-          let x;
-          if (kids.length === 0) {
-            x = leafIndex * (SLOT_W + GAP_X);
-            leafIndex += 1;
-          } else {
-            const childIds = kids.map((k) => visit(k, depth + 1, id));
-            const xs = childIds.map((cid) => positions[cid].x);
-            x = (Math.min(...xs) + Math.max(...xs)) / 2;
+        const GROUP_PAD_X = 20;
+        const GROUP_PAD_Y = 22;
+
+        function expandedChildren(node, ancestry) {
+          const normalChildren = childrenOf(node);
+          if (normalChildren.length) return normalChildren;
+
+          if (nodeKind(node) === "course") {
+            const code = node.code;
+            const expanded = expandedCourses[code];
+            if (expanded?.prereqs && !ancestry.has(code)) {
+              return [expanded.prereqs];
+            }
           }
-          positions[id] = { x, y: depth * (SLOT_H + GAP_Y), node };
+
+          return [];
+        }
+
+        function visit(
+          node,
+          depth,
+          parentId,
+          ancestry = new Set(),
+          leafGap = GAP_Y,
+          path = "root",
+          optionMeta = null,
+          interactionEnabled = true,
+          hierarchyDepth = 0,
+          sharedRequirementOwner = null,
+          sharedRequirementPath = "",
+        ) {
+          const optionIsSelected =
+            !optionMeta?.optionKey ||
+            (anySelections[optionMeta.groupKey] || []).includes(optionMeta.optionKey);
+          const descendantsEnabled = interactionEnabled && optionIsSelected;
+          // ALL_OF is a transparent branching rule. Its children occupy the
+          // current dependency column and connect directly to the preceding
+          // course/requirement node, with no intermediary ALL_OF card.
+          if (nodeKind(node) === "logic" && node.logic === "ALL") {
+            const childIds = (node.children || [])
+              .map((child, index) =>
+                visit(
+                  child,
+                  depth,
+                  parentId,
+                  ancestry,
+                  leafGap,
+                  `${path}.all${index}`,
+                  null,
+                  descendantsEnabled,
+                  hierarchyDepth,
+                  sharedRequirementOwner,
+                  `${sharedRequirementPath}.all${index}`,
+                ),
+              )
+              .filter(Boolean);
+
+            if (!childIds.length) return null;
+
+            const ys = childIds.map((id) => positions[id].y);
+            const anchorId = "a" + counter++;
+            positions[anchorId] = {
+              x: depth * (SLOT_W + GAP_X),
+              y: (Math.min(...ys) + Math.max(...ys)) / 2,
+              node: null,
+              virtual: true,
+              hierarchyDepth,
+              ...(optionMeta || {}),
+            };
+            return anchorId;
+          }
+
+          // ANY-N is a selectable option container. Once N options are
+          // selected, the group collapses to those choices until reopened.
+          if (nodeKind(node) === "logic" && node.logic === "ANY") {
+            const groupKey = sharedRequirementOwner
+              ? `any:shared:${sharedRequirementOwner}:${sharedRequirementPath || "root"}`
+              : `any:${path}`;
+
+            if (sharedRequirementOwner && sharedRequirementGroups.has(groupKey)) {
+              const sharedId = sharedRequirementGroups.get(groupKey);
+              if (parentId) {
+                edges.push({
+                  id: parentId + "_" + sharedId + "_" + counter++,
+                  sourceId: parentId,
+                  targetId: sharedId,
+                });
+              }
+
+              // Keep this upstream branch in its own vertical lane while its
+              // connector converges on the already-rendered shared group.
+              const anchorId = "a" + counter++;
+              const sharedPos = positions[sharedId];
+              const anchorHeight = sharedPos?.height || SLOT_H;
+              positions[anchorId] = {
+                x: sharedPos?.x ?? depth * (SLOT_W + GAP_X),
+                y: nextLeafY,
+                height: anchorHeight,
+                node: null,
+                virtual: true,
+                hierarchyDepth,
+              };
+              nextLeafY += anchorHeight + leafGap;
+              return anchorId;
+            }
+
+            const groupId = "g" + counter++;
+            const limit = Math.max(1, Number(node.n) || 1);
+            const selected = anySelections[groupKey] || [];
+            const collapsed = selected.length >= limit && !openAnyGroups[groupKey];
+            const options = (node.children || []).map((child, index) => ({
+              child,
+              index,
+              optionKey: `${groupKey}:option:${index}`,
+            }));
+            const visibleOptions = collapsed
+              ? options.filter((option) => selected.includes(option.optionKey))
+              : options;
+
+            const childIds = visibleOptions
+              .map((option, visibleIndex) => {
+                const isNestedGroup = nodeKind(option.child) === "logic";
+
+                // Nested option groups stay in the same dependency column.
+                // Only add vertical breathing room so their border/label does
+                // not overlap a neighbouring option in the parent group.
+                if (visibleIndex > 0 && isNestedGroup) {
+                  nextLeafY += GROUP_PAD_Y + 10;
+                }
+
+                return visit(
+                  option.child,
+                  depth,
+                  null,
+                  ancestry,
+                  ANY_GROUP_GAP_Y,
+                  `${path}.any${option.index}`,
+                  {
+                    groupKey,
+                    optionKey: option.optionKey,
+                    limit,
+                    enabled: interactionEnabled,
+                  },
+                  descendantsEnabled,
+                  hierarchyDepth + 1,
+                  sharedRequirementOwner,
+                  `${sharedRequirementPath}.any${option.index}`,
+                );
+              })
+              .filter(Boolean);
+
+            if (!childIds.length) return null;
+
+            const groupById = new Map(groups.map((group) => [group.id, group]));
+            const childBounds = childIds
+              .map((id) => {
+                const pos = positions[id];
+                if (!pos) return null;
+                const nestedGroup = pos.isGroup ? groupById.get(id) : null;
+                return nestedGroup
+                  ? {
+                      left: nestedGroup.x,
+                      top: nestedGroup.y,
+                      right: nestedGroup.x + nestedGroup.width,
+                      bottom: nestedGroup.y + nestedGroup.height,
+                    }
+                  : {
+                      left: pos.x,
+                      top: pos.y,
+                      right: pos.x + SLOT_W,
+                      bottom: pos.y + (pos.height || SLOT_H),
+                    };
+              })
+              .filter(Boolean);
+            const minX = Math.min(...childBounds.map((bounds) => bounds.left));
+            const maxX = Math.max(...childBounds.map((bounds) => bounds.right));
+            const minY = Math.min(...childBounds.map((bounds) => bounds.top));
+            const maxY = Math.max(...childBounds.map((bounds) => bounds.bottom));
+
+            // Size each ANY group from its visible contents. Equal side padding
+            // keeps the contents horizontally centered. A selectable nested group
+            // gets enough clearance on both sides for its own tick so that it does
+            // not sit on top of a child course tick.
+            const sidePadding = optionMeta?.optionKey ? 30 : 16;
+            const topPadding = collapsed ? 34 : 30;
+            // Keep the visible child bounds vertically centered inside the
+            // group. Asymmetric bottom padding made a lone course in a nested
+            // group appear lower than the box center.
+            const bottomPadding = topPadding;
+            const contentWidth = Math.max(SLOT_W, maxX - minX);
+            const groupWidth = contentWidth + sidePadding * 2;
+            const contentCenterX = (minX + maxX) / 2;
+            const groupX = contentCenterX - groupWidth / 2;
+            const groupY = minY - topPadding;
+            const groupHeight = maxY - minY + topPadding + bottomPadding;
+            const centerY = groupY + groupHeight / 2;
+
+            // The selector for a nested group represents the whole group, so it
+            // belongs at the vertical center of that group's box.
+            const selectorTop = groupHeight / 2;
+
+            groups.push({
+              id: groupId,
+              key: groupKey,
+              x: groupX,
+              y: groupY,
+              width: groupWidth,
+              height: groupHeight,
+              label: `ANY ${limit} OF`,
+              limit,
+              selectedCount: selected.length,
+              collapsed,
+              selectorTop,
+              ...(optionMeta || {}),
+              selectionEnabled: interactionEnabled,
+              hierarchyDepth,
+              nested: childIds.some((id) => positions[id]?.isGroup),
+            });
+
+            positions[groupId] = {
+              x: groupX,
+              y: groupY,
+              height: groupHeight,
+              node: null,
+              virtual: true,
+              isGroup: true,
+              ...(optionMeta || {}),
+              selectionEnabled: interactionEnabled,
+              hierarchyDepth,
+            };
+
+            if (sharedRequirementOwner) {
+              sharedRequirementGroups.set(groupKey, groupId);
+            }
+
+            if (parentId) {
+              edges.push({
+                id: parentId + "_" + groupId,
+                sourceId: parentId,
+                targetId: groupId,
+              });
+            }
+            nextLeafY += GAP_Y - ANY_GROUP_GAP_Y;
+            return groupId;
+          }
+
+          // Identical course occurrences converge while they are active in the
+          // same selected state. A selectable occurrence is shareable only when
+          // it and all containing ANY-N options are selected. As soon as that
+          // course is deselected, the next layout rebuild renders every original
+          // occurrence separately again.
+          const canShareCourseNode =
+            nodeKind(node) === "course" &&
+            (!optionMeta?.optionKey || descendantsEnabled);
+
+          if (canShareCourseNode && sharedCourseNodes.has(node.code)) {
+            const sharedId = sharedCourseNodes.get(node.code);
+            const sharedPos = positions[sharedId];
+            if (optionMeta?.optionKey && sharedPos) {
+              sharedPos.optionAliases = [
+                ...(sharedPos.optionAliases || []),
+                optionMeta,
+              ];
+            }
+            if (parentId) {
+              edges.push({
+                id: parentId + "_" + sharedId + "_" + counter++,
+                sourceId: parentId,
+                targetId: sharedId,
+              });
+            }
+            return sharedId;
+          }
+
+          const id = "n" + counter++;
+          const layoutKey = path;
+          const height = nodeHeights[layoutKey] || estimatedNodeHeight(node);
+          const nextAncestry = new Set(ancestry);
+          if (nodeKind(node) === "course") nextAncestry.add(node.code);
+          // A course option only exposes its expanded prerequisite subtree when
+          // that option and every containing ANY-N option are selected. This
+          // prevents a globally expanded matching course from creating an edge
+          // out of an unselected nested option.
+          const kids =
+            nodeKind(node) === "course" && !descendantsEnabled
+              ? []
+              : expandedChildren(node, ancestry);
+          let y;
+          if (kids.length === 0) {
+            y = nextLeafY;
+            nextLeafY += height + leafGap;
+          } else {
+            const childIds = kids
+              .map((k, index) => {
+                const ownsExpandedRequirement = nodeKind(node) === "course";
+                return visit(
+                  k,
+                  depth + 1,
+                  id,
+                  nextAncestry,
+                  leafGap,
+                  `${path}.child${index}`,
+                  null,
+                  descendantsEnabled,
+                  hierarchyDepth,
+                  ownsExpandedRequirement ? node.code : sharedRequirementOwner,
+                  ownsExpandedRequirement
+                    ? `prereqs.child${index}`
+                    : `${sharedRequirementPath}.child${index}`,
+                );
+              })
+              .filter(Boolean);
+            const centers = childIds.map((cid) => {
+              const child = positions[cid];
+              return child.y + (child.height || 0) / 2;
+            });
+            y = (Math.min(...centers) + Math.max(...centers)) / 2 - height / 2;
+          }
+          positions[id] = {
+            x: depth * (SLOT_W + GAP_X),
+            y,
+            height,
+            layoutKey,
+            node,
+            ...(optionMeta || {}),
+            optionAliases: optionMeta?.optionKey ? [optionMeta] : [],
+            selectionEnabled: interactionEnabled,
+            hierarchyDepth,
+          };
+          if (canShareCourseNode) {
+            sharedCourseNodes.set(node.code, id);
+          }
           if (parentId)
             edges.push({
               id: parentId + "_" + id,
@@ -498,48 +1020,109 @@
 
         const rootId = "n" + counter++;
         if (prereqsTree) {
-          const childId = visit(prereqsTree, 1, rootId);
+          const childId = visit(
+            prereqsTree,
+            1,
+            rootId,
+            new Set([rootCode]),
+            GAP_Y,
+            "rootPrereqs",
+            null,
+            true,
+            0,
+            rootCode,
+            "prereqs",
+          );
+          const rootHeight = nodeHeights.rootCourse || COURSE_COLLAPSED_H;
+          const child = positions[childId];
           positions[rootId] = {
-            x: positions[childId].x,
-            y: 0,
+            x: 0,
+            y: child.y + (child.height || 0) / 2 - rootHeight / 2,
+            height: rootHeight,
+            layoutKey: "rootCourse",
             node: { type: "course", code: rootCode },
             isTarget: true,
           };
-          edges.push({
-            id: rootId + "_" + childId,
-            sourceId: rootId,
-            targetId: childId,
-          });
         } else {
           positions[rootId] = {
             x: 0,
             y: 0,
+            height: nodeHeights.rootCourse || COURSE_COLLAPSED_H,
+            layoutKey: "rootCourse",
             node: { type: "course", code: rootCode },
             isTarget: true,
           };
         }
 
-        const xs = Object.values(positions).map((p) => p.x);
-        const minX = Math.min(...xs);
-        Object.values(positions).forEach((p) => (p.x -= minX));
-        const maxX = Math.max(...Object.values(positions).map((p) => p.x));
-        const maxY = Math.max(...Object.values(positions).map((p) => p.y));
+        const drawablePositions = Object.values(positions).filter((p) => !p.virtual);
+        const allMinY = Math.min(
+          ...drawablePositions.map((p) => p.y),
+          ...groups.map((g) => g.y),
+        );
+        const shiftY = allMinY < 0 ? -allMinY : 0;
+        Object.values(positions).forEach((p) => (p.y += shiftY));
+        groups.forEach((g) => (g.y += shiftY));
+
+        const maxX = Math.max(
+          ...drawablePositions.map((p) => p.x + SLOT_W),
+          ...groups.map((g) => g.x + g.width),
+        );
+        const maxY = Math.max(
+          ...drawablePositions.map((p) => p.y + (p.height || SLOT_H)),
+          ...groups.map((g) => g.y + g.height),
+        );
+
+        // Give sibling connectors separate ports along the source node's right
+        // edge. This prevents ALL_OF branches from overlapping at one point.
+        const outgoing = new Map();
+        edges.forEach((edge) => {
+          if (!outgoing.has(edge.sourceId)) outgoing.set(edge.sourceId, []);
+          outgoing.get(edge.sourceId).push(edge);
+        });
+        outgoing.forEach((sourceEdges) => {
+          sourceEdges.sort((a, b) => {
+            const ay = positions[a.targetId]?.y ?? 0;
+            const by = positions[b.targetId]?.y ?? 0;
+            return ay - by;
+          });
+          sourceEdges.forEach((edge, index) => {
+            edge.sourcePortIndex = index;
+            edge.sourcePortCount = sourceEdges.length;
+          });
+        });
 
         return {
           positions,
           edges,
-          width: maxX + SLOT_W,
-          height: maxY + SLOT_H,
+          groups,
+          width: maxX,
+          height: maxY,
         };
       }
 
-      function edgePath(p1, p2) {
-        const x1 = p1.x + SLOT_W / 2,
-          y1 = p1.y + SLOT_H;
-        const x2 = p2.x + SLOT_W / 2,
-          y2 = p2.y;
-        const midY = (y1 + y2) / 2;
-        return `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+      function edgePath(p1, p2, edge) {
+        const count = Math.max(1, edge.sourcePortCount || 1);
+        const index = edge.sourcePortIndex || 0;
+        const edgePadding = 12;
+        const sourceHeight = p1.height || SLOT_H;
+        const targetHeight = p2.height || SLOT_H;
+        const usableHeight = Math.max(0, sourceHeight - edgePadding * 2);
+        const sourceOffset =
+          count === 1
+            ? sourceHeight / 2
+            : edgePadding + (usableHeight * index) / (count - 1);
+
+        const x1 = p1.x + SLOT_W;
+        const y1 = p1.y + sourceOffset;
+        const x2 = p2.x;
+        const y2 = p2.y + targetHeight / 2;
+
+        // Stagger the horizontal bend for adjacent branches as well, making
+        // each route visually distinct even when targets are close together.
+        const directionFromCenter = index - (count - 1) / 2;
+        const laneOffset = directionFromCenter * 7;
+        const midX = (x1 + x2) / 2 + laneOffset;
+        return `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
       }
 
       /* ---------------------------------------------------------------------- */
@@ -669,25 +1252,48 @@
       /* Node rendering                                                          */
       /* ---------------------------------------------------------------------- */
 
-      function NodeCard({ pos, names, onSelectCourse }) {
+      function NodeCard({ pos, names, onExpandCourse, loadingCourses }) {
         const n = pos.node;
         const kind = pos.isTarget ? "course" : nodeKind(n);
+        const [detailsOpen, setDetailsOpen] = useState(false);
 
         if (kind === "course") {
           const info = names[n.code];
           return (
             <div
               className={
-                "card card-course" + (pos.isTarget ? " is-target" : "")
+                "card card-course" +
+                (pos.isTarget ? " is-target" : "") +
+                (detailsOpen ? " expanded" : "")
               }
-              onClick={() => onSelectCourse(n.code)}
             >
-              <div className="code">{n.code}</div>
-              <div className="name">
-                {info ? info.name : "Course details unavailable"}
-              </div>
-              {info && info.credits != null && (
-                <span className="credits">{info.credits} units</span>
+              <button
+                type="button"
+                className="course-summary"
+                aria-expanded={detailsOpen}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDetailsOpen((open) => !open);
+                }}
+              >
+                <span className="course-chevron">▾</span>
+                <span className="code">{n.code}</span>
+              </button>
+
+              {detailsOpen && (
+                <div className="course-details">
+                  <div className="name">
+                    {loadingCourses[n.code]
+                      ? "Loading prerequisites…"
+                      : info
+                        ? info.name
+                        : "Course details unavailable"}
+                  </div>
+                  {info && info.credits != null && (
+                    <span className="credits">{info.credits} units</span>
+                  )}
+                </div>
               )}
             </div>
           );
@@ -748,11 +1354,62 @@
         );
       }
 
+      function MeasuredNodeSlot({ id, pos, names, onExpandCourse, loadingCourses, onHeightChange }) {
+        const slotRef = useRef(null);
+
+        useEffect(() => {
+          const slot = slotRef.current;
+          const card = slot?.firstElementChild;
+          if (!card || !pos.layoutKey) return;
+
+          const report = () => {
+            const height = Math.ceil(card.offsetHeight);
+            if (height > 0) onHeightChange(pos.layoutKey, height);
+          };
+
+          report();
+          const observer = new ResizeObserver(report);
+          observer.observe(card);
+          return () => observer.disconnect();
+        }, [pos.layoutKey, onHeightChange]);
+
+        return (
+          <div
+            ref={slotRef}
+            className="node-slot"
+            style={{
+              left: pos.x,
+              top: pos.y,
+              width: SLOT_W,
+              height: pos.height || SLOT_H,
+              zIndex: 12 + (pos.hierarchyDepth || 0) * 10,
+            }}
+          >
+            <NodeCard
+              pos={pos}
+              names={names}
+              onExpandCourse={onExpandCourse}
+              loadingCourses={loadingCourses}
+            />
+          </div>
+        );
+      }
+
       /* ---------------------------------------------------------------------- */
       /* Graph canvas — pan + zoom                                               */
       /* ---------------------------------------------------------------------- */
 
-      function GraphCanvas({ layout, names, onSelectCourse, noPrereqs }) {
+      function GraphCanvas({
+        layout,
+        names,
+        onExpandCourse,
+        loadingCourses,
+        noPrereqs,
+        anySelections,
+        onToggleAnyOption,
+        onToggleAnyGroup,
+        onNodeHeightChange,
+      }) {
         const wrapRef = useRef(null);
         const [view, setView] = useState({ zoom: 1, panX: 24, panY: 24 });
         const dragRef = useRef(null);
@@ -813,6 +1470,68 @@
 
         if (!layout) return null;
 
+        // Avoid showing stray edge fragments when both connected nodes are
+        // outside the viewport. This can happen while panning or after an
+        // expanded subtree changes the fitted layout.
+        const wrapWidth = wrapRef.current?.clientWidth || 0;
+        const wrapHeight = wrapRef.current?.clientHeight || 0;
+        const visibleBounds = {
+          left: -view.panX / view.zoom,
+          top: -view.panY / view.zoom,
+          right: (wrapWidth - view.panX) / view.zoom,
+          bottom: (wrapHeight - view.panY) / view.zoom,
+        };
+
+        function nodeIntersectsViewport(pos) {
+          return (
+            pos.x + SLOT_W >= visibleBounds.left &&
+            pos.x <= visibleBounds.right &&
+            pos.y + (pos.height || SLOT_H) >= visibleBounds.top &&
+            pos.y <= visibleBounds.bottom
+          );
+        }
+
+        const visibleEdges = layout.edges.filter((edge) => {
+          const source = layout.positions[edge.sourceId];
+          const target = layout.positions[edge.targetId];
+          return (
+            source &&
+            target &&
+            (nodeIntersectsViewport(source) || nodeIntersectsViewport(target))
+          );
+        });
+
+        // Selector visibility is derived from the actual containing-group chain,
+        // rather than from the node type. This prevents course options from
+        // bypassing the nested-group gate while units/text options obey it.
+        const groupsByKey = new Map(
+          (layout.groups || []).map((group) => [group.key, group]),
+        );
+
+        function containingGroupsAreSelected(groupKey, seen = new Set()) {
+          if (!groupKey || seen.has(groupKey)) return true;
+          seen.add(groupKey);
+
+          const group = groupsByKey.get(groupKey);
+          if (!group || !group.optionKey) return true;
+
+          const parentSelected = (anySelections[group.groupKey] || []).includes(
+            group.optionKey,
+          );
+          return (
+            parentSelected &&
+            containingGroupsAreSelected(group.groupKey, seen)
+          );
+        }
+
+        function shouldShowOptionSelector(pos) {
+          return Boolean(
+            pos.optionKey &&
+              pos.selectionEnabled !== false &&
+              containingGroupsAreSelected(pos.groupKey),
+          );
+        }
+
         return (
           <div
             className={"canvas-wrap" + (dragRef.current ? " dragging" : "")}
@@ -860,6 +1579,77 @@
                 transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`,
               }}
             >
+              {(layout.groups || []).map((group) => (
+                <div
+                  key={group.id}
+                  className={
+                    "any-group" + (group.optionKey ? " nested-option" : "")
+                  }
+                  style={{
+                    left: group.x,
+                    top: group.y,
+                    width: group.width,
+                    height: group.height,
+                    zIndex: 10 + (group.hierarchyDepth || 0) * 10,
+                  }}
+                >
+                  {group.optionKey && (
+                    <button
+                      type="button"
+                      className={
+                        "any-option-selector" +
+                        ((anySelections[group.groupKey] || []).includes(group.optionKey)
+                          ? " selected"
+                          : "")
+                      }
+                      style={{
+                        pointerEvents: "auto",
+                        top: group.selectorTop,
+                      }}
+                      disabled={
+                        group.selectionEnabled === false ||
+                        (!(anySelections[group.groupKey] || []).includes(group.optionKey) &&
+                          (anySelections[group.groupKey] || []).length >= group.limit)
+                      }
+                      title={
+                        group.selectionEnabled === false
+                          ? "Select the parent group first"
+                          : (anySelections[group.groupKey] || []).includes(group.optionKey)
+                            ? "Deselect this group"
+                            : `Select this group (maximum ${group.limit})`
+                      }
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleAnyOption(group.groupKey, group.optionKey, group.limit);
+                      }}
+                    >
+                      {(anySelections[group.groupKey] || []).includes(group.optionKey)
+                        ? "✓"
+                        : "+"}
+                    </button>
+                  )}
+                  <div className="any-group-label">
+                    <span>
+                      {group.label} · {group.selectedCount}/{group.limit}
+                    </span>
+                    {group.selectedCount >= group.limit && (
+                      <button
+                        type="button"
+                        className="any-group-toggle"
+                        title={group.collapsed ? "Show all options" : "Hide unselected options"}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleAnyGroup(group.key);
+                        }}
+                      >
+                        {group.collapsed ? "▾" : "▴"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
               <svg
                 width={layout.width}
                 height={layout.height}
@@ -867,15 +1657,17 @@
                   position: "absolute",
                   top: 0,
                   left: 0,
-                  overflow: "visible",
+                  overflow: "hidden",
+                  pointerEvents: "none",
                 }}
               >
-                {layout.edges.map((e) => (
+                {visibleEdges.map((e) => (
                   <path
                     key={e.id}
                     d={edgePath(
                       layout.positions[e.sourceId],
                       layout.positions[e.targetId],
+                      e,
                     )}
                     fill="none"
                     stroke="var(--accent-edge)"
@@ -883,24 +1675,123 @@
                   />
                 ))}
               </svg>
-              {Object.entries(layout.positions).map(([id, pos]) => (
-                <div
-                  key={id}
-                  className="node-slot"
-                  style={{
-                    left: pos.x,
-                    top: pos.y,
-                    width: SLOT_W,
-                    height: SLOT_H,
-                  }}
-                >
-                  <NodeCard
+              {Object.entries(layout.positions)
+                .filter(([, pos]) =>
+                  pos.virtual &&
+                  !pos.isGroup &&
+                  shouldShowOptionSelector(pos),
+                )
+                .map(([id, pos]) => (
+                  <div
+                    key={id + "-selector"}
+                    className="node-slot"
+                    style={{
+                      left: pos.x,
+                      top: pos.y,
+                      width: SLOT_W,
+                      height: pos.height || SLOT_H,
+                      pointerEvents: "none",
+                      zIndex: 12 + (pos.hierarchyDepth || 0) * 10,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className={
+                        "any-option-selector" +
+                        ((anySelections[pos.groupKey] || []).includes(pos.optionKey)
+                          ? " selected"
+                          : "")
+                      }
+                      style={{ pointerEvents: "auto" }}
+                      disabled={
+                        pos.selectionEnabled === false ||
+                        (!(anySelections[pos.groupKey] || []).includes(pos.optionKey) &&
+                          (anySelections[pos.groupKey] || []).length >= pos.limit)
+                      }
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleAnyOption(
+                          pos.groupKey,
+                          pos.optionKey,
+                          pos.limit,
+                          nodeKind(pos.node) === "course" ? pos.node.code : null,
+                        );
+                      }}
+                    >
+                      {(anySelections[pos.groupKey] || []).includes(pos.optionKey)
+                        ? "✓"
+                        : "+"}
+                    </button>
+                  </div>
+                ))}
+              {Object.entries(layout.positions)
+                .filter(([, pos]) => !pos.virtual)
+                .map(([id, pos]) => (
+                  <MeasuredNodeSlot
+                    key={id}
+                    id={id}
                     pos={pos}
                     names={names}
-                    onSelectCourse={onSelectCourse}
+                    onExpandCourse={onExpandCourse}
+                    loadingCourses={loadingCourses}
+                    onHeightChange={onNodeHeightChange}
                   />
-                </div>
-              ))}
+                ))}
+
+            </div>
+
+            {/* Keep course selectors outside the transformed graph stacking
+                context. Nested group/node z-index values can no longer cover
+                these buttons because this layer is a sibling of canvas-inner. */}
+            <div
+              className="selector-layer"
+              style={{
+                transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`,
+              }}
+            >
+              {Object.entries(layout.positions)
+                .filter(([, pos]) => !pos.virtual && shouldShowOptionSelector(pos))
+                .map(([id, pos]) => (
+                  <button
+                    key={id + "-real-selector"}
+                    type="button"
+                    className={
+                      "any-option-selector" +
+                      ((anySelections[pos.groupKey] || []).includes(pos.optionKey)
+                        ? " selected"
+                        : "")
+                    }
+                    style={{
+                      left: pos.x + SLOT_W,
+                      top: pos.y + (pos.height || SLOT_H) / 2,
+                    }}
+                    disabled={
+                      pos.selectionEnabled === false ||
+                      (!(anySelections[pos.groupKey] || []).includes(pos.optionKey) &&
+                        (anySelections[pos.groupKey] || []).length >= pos.limit)
+                    }
+                    title={
+                      (anySelections[pos.groupKey] || []).includes(pos.optionKey)
+                        ? "Deselect this option"
+                        : `Select this option (maximum ${pos.limit})`
+                    }
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleAnyOption(
+                        pos.groupKey,
+                        pos.optionKey,
+                        pos.limit,
+                        nodeKind(pos.node) === "course" ? pos.node.code : null,
+                      );
+                    }}
+                  >
+                    {(anySelections[pos.groupKey] || []).includes(pos.optionKey)
+                      ? "✓"
+                      : "+"}
+                  </button>
+                ))}
             </div>
           </div>
         );
@@ -920,12 +1811,12 @@
           {
             color: "var(--accent-all)",
             title: "ALL of",
-            text: "Every child requirement must be met.",
+            text: "Every branch must be met; branches connect directly from their parent.",
           },
           {
             color: "var(--accent-any)",
             title: "ANY N of",
-            text: "At least N of the child requirements must be met.",
+            text: "Choose up to N options. After N are selected, the group collapses to those choices; use the arrow to reopen it.",
           },
           {
             color: "var(--accent-all)",
@@ -973,8 +1864,14 @@
         const [rootCode, setRootCode] = useState(null);
         const [course, setCourse] = useState(null);
         const [names, setNames] = useState({});
+        const [expandedCourses, setExpandedCourses] = useState({});
+        const [loadingCourses, setLoadingCourses] = useState({});
+        const [anySelections, setAnySelections] = useState({});
+        const [openAnyGroups, setOpenAnyGroups] = useState({});
+        const [nodeHeights, setNodeHeights] = useState({});
         const [loading, setLoading] = useState(false);
         const [error, setError] = useState(null);
+        const autoFetchingCoursesRef = useRef(new Set());
 
         useEffect(() => {
           if (!rootCode) {
@@ -988,6 +1885,11 @@
             setError(null);
             setCourse(null);
             setNames({});
+            setExpandedCourses({});
+            setLoadingCourses({});
+            setAnySelections({});
+            setOpenAnyGroups({});
+            setNodeHeights({});
 
             try {
               const result = await fetchCourse(rootCode);
@@ -1049,7 +1951,14 @@
           }
 
           try {
-            return buildLayout(rootCode, course.prereqs);
+            return buildLayout(
+              rootCode,
+              course.prereqs,
+              expandedCourses,
+              anySelections,
+              openAnyGroups,
+              nodeHeights,
+            );
           } catch (err) {
             console.error(
               "Could not build prerequisite layout:",
@@ -1058,14 +1967,328 @@
             );
 
             // At least display the target course.
-            return buildLayout(rootCode, null);
+            return buildLayout(rootCode, null, {}, {}, {}, nodeHeights);
           }
-        }, [course, rootCode]);
+        }, [course, rootCode, expandedCourses, anySelections, openAnyGroups, nodeHeights]);
+
+        const onNodeHeightChange = useCallback((layoutKey, height) => {
+          setNodeHeights((current) => {
+            if (Math.abs((current[layoutKey] || 0) - height) < 1) return current;
+            return { ...current, [layoutKey]: height };
+          });
+        }, []);
 
         const submit = (e) => {
           e.preventDefault();
           const code = normalizeCode(inputValue);
           if (code) setRootCode(code);
+        };
+
+        const loadNamesForTree = async (tree, fallbackCourse) => {
+          const codes = new Set();
+          collectCourseCodes(tree, codes);
+          if (fallbackCourse?.code) codes.add(fallbackCourse.code);
+
+          const subjects = [
+            ...new Set(
+              [...codes]
+                .filter((code) => typeof code === "string" && code.length > 0)
+                .map(subjectOf),
+            ),
+          ];
+
+          const nameMap = await fetchNamesForSubjects(subjects);
+          setNames((current) => ({
+            ...current,
+            ...(fallbackCourse?.code
+              ? { [fallbackCourse.code]: fallbackCourse }
+              : {}),
+            ...nameMap,
+          }));
+        };
+
+        const onExpandCourse = async (code) => {
+          if (code === rootCode || expandedCourses[code] || loadingCourses[code]) {
+            return;
+          }
+
+          setLoadingCourses((current) => ({ ...current, [code]: true }));
+
+          try {
+            const result = await fetchCourse(code);
+            setExpandedCourses((current) => ({ ...current, [code]: result }));
+            setNames((current) => ({ ...current, [code]: result }));
+            await loadNamesForTree(result.prereqs, result);
+          } catch (err) {
+            console.error(`Could not expand ${code}:`, err);
+          } finally {
+            setLoadingCourses((current) => {
+              const next = { ...current };
+              delete next[code];
+              return next;
+            });
+          }
+        };
+
+        // Automatically expand every course that appears beneath an ALL node.
+        // ANY branches remain manual and are never traversed by this loader.
+        useEffect(() => {
+          if (!course) return;
+
+          const candidates = new Set();
+          collectCoursesFromAllBranches(course.prereqs, candidates);
+          Object.values(expandedCourses).forEach((expanded) =>
+            collectCoursesFromAllBranches(expanded?.prereqs, candidates),
+          );
+          candidates.delete(rootCode);
+
+          candidates.forEach((code) => {
+            if (
+              !code ||
+              expandedCourses[code] ||
+              loadingCourses[code] ||
+              autoFetchingCoursesRef.current.has(code)
+            ) return;
+
+            autoFetchingCoursesRef.current.add(code);
+            setLoadingCourses((current) => ({ ...current, [code]: true }));
+
+            fetchCourse(code)
+              .then(async (result) => {
+                setExpandedCourses((current) => ({ ...current, [code]: result }));
+                setNames((current) => ({ ...current, [code]: result }));
+                await loadNamesForTree(result.prereqs, result);
+              })
+              .catch((err) =>
+                console.error(`Could not auto-expand ALL prerequisite ${code}:`, err),
+              )
+              .finally(() => {
+                autoFetchingCoursesRef.current.delete(code);
+                setLoadingCourses((current) => {
+                  const next = { ...current };
+                  delete next[code];
+                  return next;
+                });
+              });
+          });
+        }, [course, expandedCourses, loadingCourses, rootCode]);
+
+        const onToggleAnyOption = (groupKey, optionKey, limit, courseCode = null) => {
+          const selected = anySelections[groupKey] || [];
+          const isSelected = selected.includes(optionKey);
+          const isSelecting = !isSelected && selected.length < limit;
+
+          // A selectable nested group stores its parent option metadata on the
+          // group record. Use that record to identify the entire descendant
+          // subtree when the nested group itself is deselected.
+          const nestedGroup = layout?.groups?.find(
+            (group) =>
+              group.groupKey === groupKey && group.optionKey === optionKey,
+          );
+          const nestedGroupKey = nestedGroup?.key || null;
+
+          // Selecting a course option immediately loads its prerequisite tree.
+          // Deselecting it removes that expansion so its prerequisites are no
+          // longer rendered beneath the course node.
+          if (courseCode) {
+            if (isSelecting) {
+              onExpandCourse(courseCode);
+            } else if (isSelected) {
+              setExpandedCourses((current) => {
+                if (!current[courseCode]) return current;
+                const next = { ...current };
+                delete next[courseCode];
+                return next;
+              });
+            }
+          }
+
+          // Deselecting a nested ANY option also clears every selection made
+          // inside that group, including selections in deeper nested groups.
+          if (isSelected && nestedGroupKey) {
+            const isInsideNestedGroup = (key) =>
+              key === nestedGroupKey || key.startsWith(`${nestedGroupKey}.`);
+
+            const selectedCourseCodes = new Set();
+            Object.values(layout?.positions || {}).forEach((pos) => {
+              if (
+                !pos?.virtual &&
+                nodeKind(pos.node) === "course" &&
+                pos.groupKey &&
+                isInsideNestedGroup(pos.groupKey) &&
+                (anySelections[pos.groupKey] || []).includes(pos.optionKey)
+              ) {
+                selectedCourseCodes.add(pos.node.code);
+              }
+            });
+
+            setExpandedCourses((current) => {
+              let changed = false;
+              const next = { ...current };
+              selectedCourseCodes.forEach((code) => {
+                if (next[code]) {
+                  delete next[code];
+                  changed = true;
+                }
+              });
+              return changed ? next : current;
+            });
+
+            setOpenAnyGroups((current) => {
+              const next = { ...current };
+              Object.keys(next).forEach((key) => {
+                if (isInsideNestedGroup(key)) delete next[key];
+              });
+              return next;
+            });
+          }
+
+          setAnySelections((current) => {
+            const next = { ...current };
+            const currentSelected = current[groupKey] || [];
+            const currentlySelected = currentSelected.includes(optionKey);
+
+            // Matching selected direct-course occurrences behave as one merged
+            // node. Deselecting that merged node clears every currently selected
+            // eligible occurrence, which makes the next layout split them back
+            // into their original separate nodes. Occurrences inside an
+            // unselected nested ANY-N remain excluded by selectionEnabled=false.
+            if (currentlySelected && courseCode && layout) {
+              Object.values(layout.positions).forEach((pos) => {
+                if (
+                  pos.virtual ||
+                  pos.selectionEnabled === false ||
+                  nodeKind(pos.node) !== "course" ||
+                  pos.node.code !== courseCode
+                ) {
+                  return;
+                }
+
+                // A merged course node keeps the original selectable
+                // occurrences in optionAliases. Clear every alias as well as
+                // the displayed occurrence so the next layout pass can rebuild
+                // all of them as their original separate nodes.
+                const occurrences = [
+                  ...(pos.groupKey && pos.optionKey
+                    ? [{ groupKey: pos.groupKey, optionKey: pos.optionKey }]
+                    : []),
+                  ...(pos.optionAliases || []),
+                ];
+
+                occurrences.forEach((occurrence) => {
+                  if (!occurrence?.groupKey || !occurrence?.optionKey) return;
+                  if (!(next[occurrence.groupKey] || []).includes(occurrence.optionKey)) {
+                    return;
+                  }
+                  next[occurrence.groupKey] = (
+                    next[occurrence.groupKey] || []
+                  ).filter((key) => key !== occurrence.optionKey);
+                });
+              });
+            }
+
+            const selectedAfterSync = next[groupKey] || [];
+            const nextSelected = currentlySelected
+              ? selectedAfterSync.filter((key) => key !== optionKey)
+              : selectedAfterSync.length < limit
+                ? [...selectedAfterSync, optionKey]
+                : selectedAfterSync;
+
+            next[groupKey] = nextSelected;
+
+            if (currentlySelected && nestedGroupKey) {
+              Object.keys(next).forEach((key) => {
+                if (
+                  key === nestedGroupKey ||
+                  key.startsWith(`${nestedGroupKey}.`)
+                ) {
+                  delete next[key];
+                }
+              });
+            }
+
+            if (nextSelected.length >= limit) {
+              setOpenAnyGroups((open) => ({ ...open, [groupKey]: false }));
+            } else {
+              setOpenAnyGroups((open) => ({ ...open, [groupKey]: true }));
+            }
+
+            return next;
+          });
+        };
+
+        // When a directly selectable course option is selected in one ANY-N
+        // group, select matching directly selectable course options in other
+        // currently eligible ANY-N groups as well. Options inside an unselected
+        // nested ANY-N branch have selectionEnabled=false and are intentionally
+        // excluded until their containing option is selected.
+        useEffect(() => {
+          if (!layout) return;
+
+          const selectableCourseOptions = Object.values(layout.positions).filter(
+            (pos) =>
+              !pos.virtual &&
+              pos.optionKey &&
+              pos.selectionEnabled !== false &&
+              nodeKind(pos.node) === "course",
+          );
+
+          const selectedCodes = new Set(
+            selectableCourseOptions
+              .filter((pos) =>
+                (anySelections[pos.groupKey] || []).includes(pos.optionKey),
+              )
+              .map((pos) => pos.node.code),
+          );
+
+          if (!selectedCodes.size) return;
+
+          const limitsByGroup = new Map();
+          selectableCourseOptions.forEach((pos) => {
+            if (!limitsByGroup.has(pos.groupKey)) {
+              limitsByGroup.set(pos.groupKey, pos.limit);
+            }
+          });
+
+          setAnySelections((current) => {
+            const next = { ...current };
+            let changed = false;
+            const groupsFilled = new Set();
+
+            selectableCourseOptions.forEach((pos) => {
+              if (!selectedCodes.has(pos.node.code)) return;
+
+              const selected = next[pos.groupKey] || [];
+              if (selected.includes(pos.optionKey)) return;
+
+              const limit = limitsByGroup.get(pos.groupKey) || pos.limit || 1;
+              if (selected.length >= limit) return;
+
+              const updated = [...selected, pos.optionKey];
+              next[pos.groupKey] = updated;
+              changed = true;
+              if (updated.length >= limit) groupsFilled.add(pos.groupKey);
+            });
+
+            if (groupsFilled.size) {
+              setOpenAnyGroups((open) => {
+                const updated = { ...open };
+                groupsFilled.forEach((key) => {
+                  updated[key] = false;
+                });
+                return updated;
+              });
+            }
+
+            return changed ? next : current;
+          });
+        }, [layout, anySelections]);
+
+        const onToggleAnyGroup = (groupKey) => {
+          setOpenAnyGroups((current) => ({
+            ...current,
+            [groupKey]: !current[groupKey],
+          }));
         };
 
         const onSelectCourse = (code) => {
@@ -1145,8 +2368,13 @@
                   <GraphCanvas
                     layout={layout}
                     names={names}
-                    onSelectCourse={onSelectCourse}
+                    onExpandCourse={onExpandCourse}
+                    loadingCourses={loadingCourses}
                     noPrereqs={!course.prereqs}
+                    anySelections={anySelections}
+                    onToggleAnyOption={onToggleAnyOption}
+                    onToggleAnyGroup={onToggleAnyGroup}
+                    onNodeHeightChange={onNodeHeightChange}
                   />
                 )}
               </div>
