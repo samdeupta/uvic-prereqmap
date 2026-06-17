@@ -626,6 +626,11 @@
         );
       }
 
+      function courseUnits(value) {
+        const parsed = Number.parseFloat(value);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+      }
+
       function lvlRangeText(lvlRange) {
         if (!lvlRange) return "";
         const { min, max } = lvlRange;
@@ -661,6 +666,7 @@
         anySelections = {},
         openAnyGroups = {},
         nodeHeights = {},
+        courseNames = {},
       ) {
         const positions = {};
         const edges = [];
@@ -747,6 +753,130 @@
               ...(optionMeta || {}),
             };
             return anchorId;
+          }
+
+          // A units-from-courses requirement behaves like an ANY group whose
+          // completion threshold is the sum of the selected courses' units.
+          if (nodeKind(node) === "units_course") {
+            const groupKey = `units:${path}`;
+            const groupId = "g" + counter++;
+            const requiredUnits = Math.max(0, Number(node.units) || 0);
+            const selected = anySelections[groupKey] || [];
+            const options = (node.courses || []).map((code, index) => {
+              const optionKey = `${groupKey}:option:${index}`;
+              return {
+                child: { type: "course", code },
+                index,
+                optionKey,
+                units: courseUnits(courseNames[code]?.credits),
+              };
+            });
+            const selectedUnits = options.reduce(
+              (sum, option) =>
+                sum + (selected.includes(option.optionKey) ? option.units : 0),
+              0,
+            );
+            const satisfied = selectedUnits >= requiredUnits;
+            const collapsed = satisfied && !openAnyGroups[groupKey];
+            const visibleOptions = collapsed
+              ? options.filter((option) => selected.includes(option.optionKey))
+              : options;
+
+            const childIds = visibleOptions
+              .map((option) =>
+                visit(
+                  option.child,
+                  depth,
+                  null,
+                  ancestry,
+                  ANY_GROUP_GAP_Y,
+                  `${path}.units${option.index}`,
+                  {
+                    groupKey,
+                    optionKey: option.optionKey,
+                    limit: Number.MAX_SAFE_INTEGER,
+                    selectionMode: "units",
+                    requiredUnits,
+                    selectedUnits,
+                    optionUnits: option.units,
+                    enabled: interactionEnabled,
+                  },
+                  descendantsEnabled,
+                  hierarchyDepth + 1,
+                  sharedRequirementOwner,
+                  `${sharedRequirementPath}.units${option.index}`,
+                ),
+              )
+              .filter(Boolean);
+
+            if (!childIds.length) return null;
+
+            const childBounds = childIds.map((id) => {
+              const pos = positions[id];
+              return {
+                left: pos.x,
+                top: pos.y,
+                right: pos.x + SLOT_W,
+                bottom: pos.y + (pos.height || SLOT_H),
+              };
+            });
+            const minX = Math.min(...childBounds.map((bounds) => bounds.left));
+            const maxX = Math.max(...childBounds.map((bounds) => bounds.right));
+            const minY = Math.min(...childBounds.map((bounds) => bounds.top));
+            const maxY = Math.max(...childBounds.map((bounds) => bounds.bottom));
+            const sidePadding = optionMeta?.optionKey ? 30 : 16;
+            const topPadding = collapsed ? 34 : 30;
+            const bottomPadding = topPadding;
+            const contentWidth = Math.max(SLOT_W, maxX - minX);
+            const groupWidth = contentWidth + sidePadding * 2;
+            const groupX = (minX + maxX) / 2 - groupWidth / 2;
+            const groupY = minY - topPadding;
+            const groupHeight = maxY - minY + topPadding + bottomPadding;
+
+            groups.push({
+              id: groupId,
+              key: groupKey,
+              x: groupX,
+              y: groupY,
+              width: groupWidth,
+              height: groupHeight,
+              label: "UNITS FROM",
+              progressText: `${selectedUnits}/${requiredUnits} units`,
+              limit: Number.MAX_SAFE_INTEGER,
+              selectedCount: selected.length,
+              selectionMode: "units",
+              selectedUnits,
+              requiredUnits,
+              satisfied,
+              collapsed,
+              selectorTop: groupHeight / 2,
+              ...(optionMeta || {}),
+              selectionEnabled: interactionEnabled,
+              hierarchyDepth,
+              nested: false,
+            });
+
+            positions[groupId] = {
+              x: groupX,
+              y: groupY,
+              height: groupHeight,
+              node: null,
+              virtual: true,
+              isGroup: true,
+              ...(optionMeta || {}),
+              selectionEnabled: interactionEnabled,
+              hierarchyDepth,
+            };
+
+            if (parentId) {
+              edges.push({
+                id: parentId + "_" + groupId,
+                sourceId: parentId,
+                targetId: groupId,
+              });
+            }
+            nextLeafY += GAP_Y - ANY_GROUP_GAP_Y;
+            return groupId;
           }
 
           // ANY-N is a selectable option container. Once N options are
@@ -1508,6 +1638,14 @@
           (layout.groups || []).map((group) => [group.key, group]),
         );
 
+        function selectionRequirementMet(pos) {
+          const group = groupsByKey.get(pos.groupKey);
+          if (group?.selectionMode === "units") {
+            return group.selectedUnits >= group.requiredUnits;
+          }
+          return (anySelections[pos.groupKey] || []).length >= pos.limit;
+        }
+
         function containingGroupsAreSelected(groupKey, seen = new Set()) {
           if (!groupKey || seen.has(groupKey)) return true;
           seen.add(groupKey);
@@ -1609,7 +1747,7 @@
                       disabled={
                         group.selectionEnabled === false ||
                         (!(anySelections[group.groupKey] || []).includes(group.optionKey) &&
-                          (anySelections[group.groupKey] || []).length >= group.limit)
+                          selectionRequirementMet(group))
                       }
                       title={
                         group.selectionEnabled === false
@@ -1631,9 +1769,9 @@
                   )}
                   <div className="any-group-label">
                     <span>
-                      {group.label} · {group.selectedCount}/{group.limit}
+                      {group.label} · {group.progressText || `${group.selectedCount}/${group.limit}`}
                     </span>
-                    {group.selectedCount >= group.limit && (
+                    {(group.satisfied ?? group.selectedCount >= group.limit) && (
                       <button
                         type="button"
                         className="any-group-toggle"
@@ -1706,7 +1844,7 @@
                       disabled={
                         pos.selectionEnabled === false ||
                         (!(anySelections[pos.groupKey] || []).includes(pos.optionKey) &&
-                          (anySelections[pos.groupKey] || []).length >= pos.limit)
+                          selectionRequirementMet(pos))
                       }
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
@@ -1769,7 +1907,7 @@
                     disabled={
                       pos.selectionEnabled === false ||
                       (!(anySelections[pos.groupKey] || []).includes(pos.optionKey) &&
-                        (anySelections[pos.groupKey] || []).length >= pos.limit)
+                        selectionRequirementMet(pos))
                     }
                     title={
                       (anySelections[pos.groupKey] || []).includes(pos.optionKey)
@@ -1958,6 +2096,7 @@
               anySelections,
               openAnyGroups,
               nodeHeights,
+              names,
             );
           } catch (err) {
             console.error(
@@ -1967,9 +2106,9 @@
             );
 
             // At least display the target course.
-            return buildLayout(rootCode, null, {}, {}, {}, nodeHeights);
+            return buildLayout(rootCode, null, {}, {}, {}, nodeHeights, names);
           }
-        }, [course, rootCode, expandedCourses, anySelections, openAnyGroups, nodeHeights]);
+        }, [course, rootCode, expandedCourses, anySelections, openAnyGroups, nodeHeights, names]);
 
         const onNodeHeightChange = useCallback((layoutKey, height) => {
           setNodeHeights((current) => {
@@ -2076,7 +2215,11 @@
         const onToggleAnyOption = (groupKey, optionKey, limit, courseCode = null) => {
           const selected = anySelections[groupKey] || [];
           const isSelected = selected.includes(optionKey);
-          const isSelecting = !isSelected && selected.length < limit;
+          const groupConfig = layout?.groups?.find((group) => group.key === groupKey);
+          const requirementMet = groupConfig?.selectionMode === "units"
+            ? groupConfig.selectedUnits >= groupConfig.requiredUnits
+            : selected.length >= limit;
+          const isSelecting = !isSelected && !requirementMet;
 
           // A selectable nested group stores its parent option metadata on the
           // group record. Use that record to identify the entire descendant
@@ -2190,7 +2333,7 @@
             const selectedAfterSync = next[groupKey] || [];
             const nextSelected = currentlySelected
               ? selectedAfterSync.filter((key) => key !== optionKey)
-              : selectedAfterSync.length < limit
+              : !requirementMet
                 ? [...selectedAfterSync, optionKey]
                 : selectedAfterSync;
 
@@ -2207,7 +2350,23 @@
               });
             }
 
-            if (nextSelected.length >= limit) {
+            const selectedUnitTotal = groupConfig?.selectionMode === "units"
+              ? Object.values(layout?.positions || {}).reduce((sum, pos) => {
+                  if (
+                    pos.groupKey === groupKey &&
+                    pos.optionKey &&
+                    nextSelected.includes(pos.optionKey)
+                  ) {
+                    return sum + (pos.optionUnits || 0);
+                  }
+                  return sum;
+                }, 0)
+              : 0;
+            const isNowSatisfied = groupConfig?.selectionMode === "units"
+              ? selectedUnitTotal >= groupConfig.requiredUnits
+              : nextSelected.length >= limit;
+
+            if (isNowSatisfied) {
               setOpenAnyGroups((open) => ({ ...open, [groupKey]: false }));
             } else {
               setOpenAnyGroups((open) => ({ ...open, [groupKey]: true }));
@@ -2262,12 +2421,39 @@
               if (selected.includes(pos.optionKey)) return;
 
               const limit = limitsByGroup.get(pos.groupKey) || pos.limit || 1;
-              if (selected.length >= limit) return;
+              const group = layout.groups.find((item) => item.key === pos.groupKey);
+              if (group?.selectionMode === "units") {
+                const currentUnits = selectableCourseOptions.reduce((sum, option) => {
+                  if (
+                    option.groupKey === pos.groupKey &&
+                    selected.includes(option.optionKey)
+                  ) {
+                    return sum + (option.optionUnits || 0);
+                  }
+                  return sum;
+                }, 0);
+                if (currentUnits >= group.requiredUnits) return;
+              } else if (selected.length >= limit) {
+                return;
+              }
 
               const updated = [...selected, pos.optionKey];
               next[pos.groupKey] = updated;
               changed = true;
-              if (updated.length >= limit) groupsFilled.add(pos.groupKey);
+              if (group?.selectionMode === "units") {
+                const updatedUnits = selectableCourseOptions.reduce((sum, option) => {
+                  if (
+                    option.groupKey === pos.groupKey &&
+                    updated.includes(option.optionKey)
+                  ) {
+                    return sum + (option.optionUnits || 0);
+                  }
+                  return sum;
+                }, 0);
+                if (updatedUnits >= group.requiredUnits) groupsFilled.add(pos.groupKey);
+              } else if (updated.length >= limit) {
+                groupsFilled.add(pos.groupKey);
+              }
             });
 
             if (groupsFilled.size) {
