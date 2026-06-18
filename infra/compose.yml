@@ -16,3 +16,11 @@ services:
     env_file:
       - ../.env
     restart: no
+  
+  backend-tests:
+    build:
+      context: ../
+      dockerfile: infra/docker/backend-tests.Dockerfile
+    env_file:
+      - ../.env
+    restart: no

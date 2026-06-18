@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 
-from src.prereq_parser import (
+from course_info_scraper.src.prereq_parser import (
     PrereqParser, 
     SELECT_ALL, 
     SELECT_ANY_N, 
