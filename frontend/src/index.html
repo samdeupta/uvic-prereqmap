@@ -392,6 +392,66 @@
         align-items: center;
         justify-content: center;
         overflow: visible;
+        transition:
+          left 390ms cubic-bezier(0.22, 1, 0.36, 1),
+          top 390ms cubic-bezier(0.22, 1, 0.36, 1),
+          height 300ms ease;
+      }
+
+      .node-slot.node-enter {
+        animation: node-grow-in 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        transform-origin: center;
+      }
+
+      .any-group {
+        transition:
+          left 390ms cubic-bezier(0.22, 1, 0.36, 1),
+          top 390ms cubic-bezier(0.22, 1, 0.36, 1),
+          width 340ms cubic-bezier(0.22, 1, 0.36, 1),
+          height 340ms cubic-bezier(0.22, 1, 0.36, 1),
+          opacity 220ms ease;
+      }
+
+      .any-group.group-enter {
+        animation: group-grow-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        transform-origin: center;
+      }
+
+      .merge-ghost {
+        position: absolute;
+        width: 200px;
+        pointer-events: none;
+        z-index: 999998;
+        transition:
+          left 440ms cubic-bezier(0.22, 1, 0.36, 1),
+          top 440ms cubic-bezier(0.22, 1, 0.36, 1),
+          transform 440ms cubic-bezier(0.22, 1, 0.36, 1),
+          opacity 360ms ease;
+        will-change: left, top, transform, opacity;
+      }
+
+      .merge-ghost.merging {
+        transform: scale(0.72);
+        opacity: 0;
+      }
+
+      @keyframes node-grow-in {
+        from { opacity: 0; transform: scale(0.72); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      @keyframes group-grow-in {
+        from { opacity: 0; transform: scale(0.9); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .node-slot,
+        .any-group,
+        .merge-ghost {
+          transition: none !important;
+          animation: none !important;
+        }
       }
 
       .selector-layer {
@@ -1843,7 +1903,7 @@
         );
       }
 
-      function MeasuredNodeSlot({ id, pos, names, onExpandCourse, loadingCourses, onHeightChange }) {
+      function MeasuredNodeSlot({ id, pos, names, onExpandCourse, loadingCourses, onHeightChange, isNew }) {
         const slotRef = useRef(null);
 
         useEffect(() => {
@@ -1865,7 +1925,7 @@
         return (
           <div
             ref={slotRef}
-            className="node-slot"
+            className={"node-slot" + (isNew ? " node-enter" : "")}
             style={{
               left: pos.x,
               top: pos.y,
@@ -1898,43 +1958,281 @@
         onToggleAnyOption,
         onToggleAnyGroup,
         onNodeHeightChange,
+        viewResetKey,
       }) {
         const wrapRef = useRef(null);
         const [view, setView] = useState({ zoom: 1, panX: 24, panY: 24 });
+        const viewRef = useRef(view);
         const dragRef = useRef(null);
+        const zoomAnimationRef = useRef(null);
+        const zoomTargetRef = useRef(null);
+        const autoFitTimerRef = useRef(null);
+        const previousLayoutRef = useRef(null);
+        const previousNodeKeysRef = useRef(new Set());
+        const previousGroupKeysRef = useRef(new Set());
+        const [mergeGhosts, setMergeGhosts] = useState([]);
+
+        useEffect(() => {
+          viewRef.current = view;
+        }, [view]);
+
+        const nodeIdentity = useCallback(
+          (id, pos) => pos.layoutKey || `${nodeKind(pos.node)}:${pos.node?.code || id}`,
+          [],
+        );
+
+        useEffect(() => {
+          if (!layout) return;
+          const previous = previousLayoutRef.current;
+          let cleanupTimer;
+          let animationFrame;
+
+          if (previous) {
+            const currentCourses = new Map();
+            Object.values(layout.positions).forEach((pos) => {
+              if (!pos.virtual && nodeKind(pos.node) === "course") {
+                if (!currentCourses.has(pos.node.code)) currentCourses.set(pos.node.code, pos);
+              }
+            });
+
+            const ghosts = [];
+            Object.entries(previous.positions).forEach(([id, oldPos]) => {
+              if (oldPos.virtual || nodeKind(oldPos.node) !== "course") return;
+              const oldKey = nodeIdentity(id, oldPos);
+              const stillExists = Object.entries(layout.positions).some(
+                ([newId, newPos]) => !newPos.virtual && nodeIdentity(newId, newPos) === oldKey,
+              );
+              const target = currentCourses.get(oldPos.node.code);
+              if (!stillExists && target) {
+                ghosts.push({
+                  key: `${oldKey}:${Date.now()}:${ghosts.length}`,
+                  code: oldPos.node.code,
+                  fromX: oldPos.x,
+                  fromY: oldPos.y,
+                  toX: target.x,
+                  toY: target.y,
+                  height: oldPos.height || COURSE_COLLAPSED_H,
+                  merging: false,
+                });
+              }
+            });
+
+            if (ghosts.length) {
+              setMergeGhosts(ghosts);
+              animationFrame = requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  setMergeGhosts((items) =>
+                    items.map((item) => ({ ...item, merging: true })),
+                  );
+                });
+              });
+              cleanupTimer = setTimeout(() => setMergeGhosts([]), 510);
+            }
+          }
+
+          previousLayoutRef.current = layout;
+          previousNodeKeysRef.current = new Set(
+            Object.entries(layout.positions)
+              .filter(([, pos]) => !pos.virtual)
+              .map(([id, pos]) => nodeIdentity(id, pos)),
+          );
+          previousGroupKeysRef.current = new Set(
+            (layout.groups || []).map((group) => group.key),
+          );
+
+          return () => {
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+            if (cleanupTimer) clearTimeout(cleanupTimer);
+          };
+        }, [layout, nodeIdentity]);
+
+        const animateViewTo = useCallback((target, duration = 700) => {
+          if (zoomAnimationRef.current != null) {
+            cancelAnimationFrame(zoomAnimationRef.current);
+            zoomAnimationRef.current = null;
+          }
+          zoomTargetRef.current = null;
+
+          const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+          if (reduceMotion) {
+            viewRef.current = target;
+            setView(target);
+            return;
+          }
+
+          const startedAt = performance.now();
+          const startView = { ...viewRef.current };
+
+          const easeInOutCubic = (t) =>
+            t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+          const tick = (now) => {
+            const from = startView;
+            const progress = Math.min(1, (now - startedAt) / duration);
+            const eased = easeInOutCubic(progress);
+            const nextView = {
+              zoom: from.zoom + (target.zoom - from.zoom) * eased,
+              panX: from.panX + (target.panX - from.panX) * eased,
+              panY: from.panY + (target.panY - from.panY) * eased,
+            };
+            viewRef.current = nextView;
+            setView(nextView);
+
+            if (progress < 1) {
+              zoomAnimationRef.current = requestAnimationFrame(tick);
+            } else {
+              zoomAnimationRef.current = null;
+            }
+          };
+
+          zoomAnimationRef.current = requestAnimationFrame(tick);
+        }, []);
 
         const fitView = useCallback(() => {
           const wrap = wrapRef.current;
           if (!wrap || !layout) return;
-          const cw = wrap.clientWidth,
-            ch = wrap.clientHeight;
+
+          const cw = wrap.clientWidth;
+          const ch = wrap.clientHeight;
+          const graphWidth = Math.max(1, layout.width);
+          const graphHeight = Math.max(1, layout.height);
+          // Reserve extra space on the right for the floating graph controls,
+          // so the rightmost cards never sit underneath the + / − / fit buttons.
+          const leftPadding = 32;
+          const rightPadding = 104;
+          const topPadding = 32;
+          const bottomPadding = 32;
+          const availableWidth = Math.max(1, cw - leftPadding - rightPadding);
+          const availableHeight = Math.max(1, ch - topPadding - bottomPadding);
           const zoom = Math.min(
             1,
-            (cw - 48) / layout.width,
-            (ch - 48) / layout.height,
+            availableWidth / graphWidth,
+            availableHeight / graphHeight,
           );
-          const z = Math.max(0.25, zoom);
-          setView({
-            zoom: z,
-            panX: Math.max(24, (cw - layout.width * z) / 2),
-            panY: 24,
-          });
-        }, [layout]);
+          const z = Math.max(0.25, zoom * 0.97);
 
+          // Move and zoom the camera together so the complete graph is centered
+          // inside the safe viewport area rather than beneath the toolbar.
+          animateViewTo(
+            {
+              zoom: z,
+              panX:
+                leftPadding + (availableWidth - graphWidth * z) / 2,
+              panY:
+                topPadding + (availableHeight - graphHeight * z) / 2,
+            },
+            850,
+          );
+        }, [layout, animateViewTo]);
+
+        // Wait until the graph layout has stopped changing before starting the
+        // automatic fit. Height measurements and merge/layout updates can arrive
+        // across several React renders; debouncing them prevents the camera from
+        // completing one fit and then immediately starting a second one.
         useEffect(() => {
-          fitView();
-        }, [fitView]);
+          if (!layout) return;
+
+          if (autoFitTimerRef.current != null) {
+            clearTimeout(autoFitTimerRef.current);
+          }
+
+          // Cancel an older automatic camera move while the new layout settles.
+          // The next fit starts once and animates zoom, panX, and panY together.
+          if (zoomAnimationRef.current != null) {
+            cancelAnimationFrame(zoomAnimationRef.current);
+            zoomAnimationRef.current = null;
+          }
+          zoomTargetRef.current = null;
+
+          autoFitTimerRef.current = setTimeout(() => {
+            autoFitTimerRef.current = null;
+            requestAnimationFrame(() => requestAnimationFrame(fitView));
+          }, 420);
+
+          return () => {
+            if (autoFitTimerRef.current != null) {
+              clearTimeout(autoFitTimerRef.current);
+              autoFitTimerRef.current = null;
+            }
+          };
+        }, [layout, viewResetKey, fitView]);
 
         const onWheel = (e) => {
           e.preventDefault();
-          setView((v) => {
-            const next = Math.min(
+
+          const wrap = wrapRef.current;
+          if (!wrap) return;
+
+          const rect = wrap.getBoundingClientRect();
+          const pointerX = e.clientX - rect.left;
+          const pointerY = e.clientY - rect.top;
+          const deltaScale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 80 : 1;
+          const normalizedDelta = e.deltaY * deltaScale;
+
+          setView((current) => {
+            const baseTarget = zoomTargetRef.current || current;
+            const nextZoom = Math.min(
               2,
-              Math.max(0.25, v.zoom - e.deltaY * 0.0015),
+              Math.max(0.25, baseTarget.zoom * Math.exp(-normalizedDelta * 0.0015)),
             );
-            return { ...v, zoom: next };
+
+            // Keep the graph point beneath the pointer stationary while zooming.
+            const graphX = (pointerX - current.panX) / current.zoom;
+            const graphY = (pointerY - current.panY) / current.zoom;
+            zoomTargetRef.current = {
+              zoom: nextZoom,
+              panX: pointerX - graphX * nextZoom,
+              panY: pointerY - graphY * nextZoom,
+            };
+
+            if (zoomAnimationRef.current == null) {
+              const animateZoom = () => {
+                let keepAnimating = false;
+                setView((visible) => {
+                  const target = zoomTargetRef.current;
+                  if (!target) return visible;
+
+                  const easing = 0.28;
+                  const next = {
+                    zoom: visible.zoom + (target.zoom - visible.zoom) * easing,
+                    panX: visible.panX + (target.panX - visible.panX) * easing,
+                    panY: visible.panY + (target.panY - visible.panY) * easing,
+                  };
+                  const settled =
+                    Math.abs(next.zoom - target.zoom) < 0.0005 &&
+                    Math.abs(next.panX - target.panX) < 0.1 &&
+                    Math.abs(next.panY - target.panY) < 0.1;
+
+                  keepAnimating = !settled;
+                  return settled ? target : next;
+                });
+
+                if (keepAnimating) {
+                  zoomAnimationRef.current = requestAnimationFrame(animateZoom);
+                } else {
+                  zoomAnimationRef.current = null;
+                  zoomTargetRef.current = null;
+                }
+              };
+
+              zoomAnimationRef.current = requestAnimationFrame(animateZoom);
+            }
+
+            return current;
           });
         };
+
+        useEffect(
+          () => () => {
+            if (zoomAnimationRef.current != null) {
+              cancelAnimationFrame(zoomAnimationRef.current);
+            }
+            if (autoFitTimerRef.current != null) {
+              clearTimeout(autoFitTimerRef.current);
+            }
+          },
+          [],
+        );
 
         const onMouseDown = (e) => {
           dragRef.current = {
@@ -2080,7 +2378,9 @@
                 <div
                   key={group.id}
                   className={
-                    "any-group" + (group.optionKey ? " nested-option" : "")
+                    "any-group" +
+                    (group.optionKey ? " nested-option" : "") +
+                    (!previousGroupKeysRef.current.has(group.key) ? " group-enter" : "")
                   }
                   style={{
                     left: group.x,
@@ -2235,17 +2535,40 @@
                 ))}
               {Object.entries(layout.positions)
                 .filter(([, pos]) => !pos.virtual)
-                .map(([id, pos]) => (
-                  <MeasuredNodeSlot
-                    key={id}
-                    id={id}
-                    pos={pos}
-                    names={names}
-                    onExpandCourse={onExpandCourse}
-                    loadingCourses={loadingCourses}
-                    onHeightChange={onNodeHeightChange}
-                  />
-                ))}
+                .map(([id, pos]) => {
+                  const identity = nodeIdentity(id, pos);
+                  return (
+                    <MeasuredNodeSlot
+                      key={identity}
+                      id={id}
+                      pos={pos}
+                      names={names}
+                      onExpandCourse={onExpandCourse}
+                      loadingCourses={loadingCourses}
+                      onHeightChange={onNodeHeightChange}
+                      isNew={!previousNodeKeysRef.current.has(identity)}
+                    />
+                  );
+                })}
+
+              {mergeGhosts.map((ghost) => (
+                <div
+                  key={ghost.key}
+                  className={"merge-ghost" + (ghost.merging ? " merging" : "")}
+                  style={{
+                    left: ghost.merging ? ghost.toX : ghost.fromX,
+                    top: ghost.merging ? ghost.toY : ghost.fromY,
+                    height: ghost.height,
+                  }}
+                >
+                  <div className="card card-course">
+                    <div className="course-summary">
+                      <span className="course-chevron">▾</span>
+                      <span className="code">{ghost.code}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
 
             </div>
 
@@ -3006,6 +3329,7 @@
                     onToggleAnyOption={onToggleAnyOption}
                     onToggleAnyGroup={onToggleAnyGroup}
                     onNodeHeightChange={onNodeHeightChange}
+                    viewResetKey={rootCode}
                   />
                 )}
               </div>
