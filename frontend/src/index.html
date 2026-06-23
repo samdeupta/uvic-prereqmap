@@ -887,6 +887,13 @@
           // ANY-N is a selectable option container. Once N options are
           // selected, the group collapses to those choices until reopened.
           if (nodeKind(node) === "logic" && node.logic === "ANY") {
+            // Remember which layout objects existed before this container was
+            // visited. If every visible child later resolves to an already
+            // shared course node, this ANY container has no unique visual
+            // content of its own and must not leave an empty "ghost" box.
+            const positionsBeforeAnyGroup = new Set(Object.keys(positions));
+            const groupsBeforeAnyGroup = groups.length;
+
             const groupKey = sharedRequirementOwner
               ? `any:shared:${sharedRequirementOwner}:${sharedRequirementPath || "root"}`
               : `any:${path}`;
@@ -935,14 +942,19 @@
               .map((option, visibleIndex) => {
                 const isNestedGroup = nodeKind(option.child) === "logic";
 
-                // Nested option groups stay in the same dependency column.
-                // Only add vertical breathing room so their border/label does
-                // not overlap a neighbouring option in the parent group.
+                // Keep the visible options in this group on a compact, regular
+                // vertical rhythm. Expanded prerequisite subtrees may be much
+                // taller than their owning course; they should not create a
+                // large blank hole between that course and the next option.
                 if (visibleIndex > 0 && isNestedGroup) {
                   nextLeafY += GROUP_PAD_Y + 10;
                 }
 
-                return visit(
+                const optionTop = nextLeafY;
+                const positionIdsBefore = new Set(Object.keys(positions));
+                const groupCountBefore = groups.length;
+
+                const childId = visit(
                   option.child,
                   depth,
                   null,
@@ -960,10 +972,199 @@
                   sharedRequirementOwner,
                   `${sharedRequirementPath}.any${option.index}`,
                 );
+
+                if (!childId || !positions[childId]) return childId;
+
+                // visit() lays out descendants first and normally centers the
+                // parent over them. For selectable lists, move the whole newly
+                // created option subtree so the option itself stays at the next
+                // compact row. Connectors remain attached because every member
+                // of the subtree moves by the same amount.
+                const deltaY = optionTop - positions[childId].y;
+                if (Math.abs(deltaY) > 0.01) {
+                  Object.entries(positions).forEach(([id, pos]) => {
+                    if (!positionIdsBefore.has(id)) pos.y += deltaY;
+                  });
+                  for (let i = groupCountBefore; i < groups.length; i += 1) {
+                    groups[i].y += deltaY;
+                  }
+                }
+
+                // Keep the option card itself compact, but give its expanded
+                // dependency subtree an independent vertical lane. Moving only
+                // the nodes to the right of the option avoids overlaps between
+                // different selected courses without reintroducing large gaps
+                // between the selectable course cards. The connector is a
+                // cubic curve, so it can bend to the shifted subtree naturally.
+                const optionX = positions[childId].x;
+                const DEPENDENCY_COLLISION_GAP = 18;
+                const movablePositionIds = Object.keys(positions).filter(
+                  (id) =>
+                    !positionIdsBefore.has(id) &&
+                    id !== childId &&
+                    positions[id].x > optionX + 1,
+                );
+                const movableGroupIndexes = [];
+                for (let i = groupCountBefore; i < groups.length; i += 1) {
+                  if (groups[i].x > optionX + 1) movableGroupIndexes.push(i);
+                }
+
+                const movingRects = [
+                  ...movablePositionIds.map((id) => {
+                    const pos = positions[id];
+                    const group = pos.isGroup
+                      ? groups.find((candidate) => candidate.id === id)
+                      : null;
+                    return group
+                      ? {
+                          left: group.x,
+                          right: group.x + group.width,
+                          top: group.y,
+                          bottom: group.y + group.height,
+                        }
+                      : {
+                          left: pos.x,
+                          right: pos.x + SLOT_W,
+                          top: pos.y,
+                          bottom: pos.y + (pos.height || SLOT_H),
+                        };
+                  }),
+                  ...movableGroupIndexes
+                    .filter((index) => !positions[groups[index].id])
+                    .map((index) => {
+                      const group = groups[index];
+                      return {
+                        left: group.x,
+                        right: group.x + group.width,
+                        top: group.y,
+                        bottom: group.y + group.height,
+                      };
+                    }),
+                ];
+
+                const blockerRects = [
+                  ...Object.entries(positions)
+                    .filter(([id]) => positionIdsBefore.has(id))
+                    .map(([id, pos]) => {
+                      const group = pos.isGroup
+                        ? groups.find((candidate) => candidate.id === id)
+                        : null;
+                      return group
+                        ? {
+                            left: group.x,
+                            right: group.x + group.width,
+                            top: group.y,
+                            bottom: group.y + group.height,
+                          }
+                        : {
+                            left: pos.x,
+                            right: pos.x + SLOT_W,
+                            top: pos.y,
+                            bottom: pos.y + (pos.height || SLOT_H),
+                          };
+                    }),
+                  ...groups
+                    .slice(0, groupCountBefore)
+                    .filter((group) => !positions[group.id])
+                    .map((group) => ({
+                      left: group.x,
+                      right: group.x + group.width,
+                      top: group.y,
+                      bottom: group.y + group.height,
+                    })),
+                ];
+
+                let dependencyShift = 0;
+                movingRects.forEach((moving) => {
+                  blockerRects.forEach((blocker) => {
+                    const horizontalOverlap =
+                      moving.left < blocker.right && moving.right > blocker.left;
+                    const verticalOverlap =
+                      moving.top + dependencyShift <
+                        blocker.bottom + DEPENDENCY_COLLISION_GAP &&
+                      moving.bottom + dependencyShift + DEPENDENCY_COLLISION_GAP >
+                        blocker.top;
+                    if (horizontalOverlap && verticalOverlap) {
+                      dependencyShift = Math.max(
+                        dependencyShift,
+                        blocker.bottom + DEPENDENCY_COLLISION_GAP - moving.top,
+                      );
+                    }
+                  });
+                });
+
+                if (dependencyShift > 0) {
+                  movablePositionIds.forEach((id) => {
+                    positions[id].y += dependencyShift;
+                  });
+                  movableGroupIndexes.forEach((index) => {
+                    groups[index].y += dependencyShift;
+                  });
+                }
+
+                const optionHeight = positions[childId].height || SLOT_H;
+                nextLeafY = optionTop + optionHeight + ANY_GROUP_GAP_Y;
+                return childId;
               })
               .filter(Boolean);
 
             if (!childIds.length) return null;
+
+            // A collapsed selected branch can resolve entirely to course nodes
+            // that were already rendered by another selected branch. In that
+            // case, drawing this group's border would create an empty ghost
+            // container around space that no longer owns a node. Collapse the
+            // container into the shared node instead. Preserve this group's
+            // selectable occurrence as an alias so deselecting the merged node
+            // still clears every original selection and restores unmerged
+            // branches on the next layout pass.
+            const uniqueChildIds = [...new Set(childIds)];
+            const allChildrenWereAlreadyShared =
+              uniqueChildIds.length > 0 &&
+              uniqueChildIds.every((id) => positionsBeforeAnyGroup.has(id));
+
+            if (collapsed && allChildrenWereAlreadyShared) {
+              const sharedId = uniqueChildIds[0];
+              const sharedPos = positions[sharedId];
+
+              if (sharedPos && optionMeta?.optionKey) {
+                const aliases = sharedPos.optionAliases || [];
+                const alreadyTracked = aliases.some(
+                  (alias) =>
+                    alias.groupKey === optionMeta.groupKey &&
+                    alias.optionKey === optionMeta.optionKey,
+                );
+                if (!alreadyTracked) {
+                  sharedPos.optionAliases = [...aliases, optionMeta];
+                }
+              }
+
+              // Defensive cleanup: no unique groups should normally have been
+              // created when all children were shared, but remove any that were
+              // produced by nested wrappers before they reached this check.
+              const discardedGroupIds = new Set(
+                groups.slice(groupsBeforeAnyGroup).map((group) => group.id),
+              );
+              groups.splice(groupsBeforeAnyGroup);
+              discardedGroupIds.forEach((id) => delete positions[id]);
+              for (let i = edges.length - 1; i >= 0; i -= 1) {
+                if (
+                  discardedGroupIds.has(edges[i].sourceId) ||
+                  discardedGroupIds.has(edges[i].targetId)
+                ) {
+                  edges.splice(i, 1);
+                }
+              }
+
+              if (parentId) {
+                edges.push({
+                  id: parentId + "_" + sharedId + "_" + counter++,
+                  sourceId: parentId,
+                  targetId: sharedId,
+                });
+              }
+              return sharedId;
+            }
 
             const groupById = new Map(groups.map((group) => [group.id, group]));
             const childBounds = childIds
@@ -1281,7 +1482,7 @@
         };
       }
 
-      function edgePath(p1, p2, edge) {
+      function edgeGeometry(p1, p2, edge) {
         const count = Math.max(1, edge.sourcePortCount || 1);
         const index = edge.sourcePortIndex || 0;
         const edgePadding = 12;
@@ -1303,7 +1504,39 @@
         const directionFromCenter = index - (count - 1) / 2;
         const laneOffset = directionFromCenter * 7;
         const midX = (x1 + x2) / 2 + laneOffset;
-        return `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
+        const path = `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
+
+        // Build the arrowhead ourselves instead of relying on an SVG marker.
+        // Sampling the curve shortly before its endpoint makes the arrow follow
+        // the visible approach angle on very steep connectors. The two base
+        // corners are placed equally on either side of that tangent, so the
+        // arrowhead's centerline always sits directly on the connector.
+        const tangentT = 0.92;
+        const oneMinusT = 1 - tangentT;
+        const tangentX =
+          3 * oneMinusT * oneMinusT * (midX - x1) +
+          6 * oneMinusT * tangentT * (midX - midX) +
+          3 * tangentT * tangentT * (x2 - midX);
+        const tangentY =
+          3 * oneMinusT * oneMinusT * (y1 - y1) +
+          6 * oneMinusT * tangentT * (y2 - y1) +
+          3 * tangentT * tangentT * (y2 - y2);
+        const tangentLength = Math.hypot(tangentX, tangentY) || 1;
+        const dirX = tangentX / tangentLength;
+        const dirY = tangentY / tangentLength;
+        const perpX = -dirY;
+        const perpY = dirX;
+        const arrowLength = 12;
+        const arrowHalfWidth = 6;
+        const baseX = x2 - dirX * arrowLength;
+        const baseY = y2 - dirY * arrowLength;
+        const arrowPoints = [
+          `${x2},${y2}`,
+          `${baseX + perpX * arrowHalfWidth},${baseY + perpY * arrowHalfWidth}`,
+          `${baseX - perpX * arrowHalfWidth},${baseY - perpY * arrowHalfWidth}`,
+        ].join(" ");
+
+        return { path, arrowPoints };
       }
 
       /* ---------------------------------------------------------------------- */
@@ -1850,19 +2083,30 @@
                   pointerEvents: "none",
                 }}
               >
-                {visibleEdges.map((e) => (
-                  <path
-                    key={e.id}
-                    d={edgePath(
-                      layout.positions[e.sourceId],
-                      layout.positions[e.targetId],
-                      e,
-                    )}
-                    fill="none"
-                    stroke="var(--accent-edge)"
-                    strokeWidth="1.75"
-                  />
-                ))}
+                {visibleEdges.map((e) => {
+                  const geometry = edgeGeometry(
+                    layout.positions[e.sourceId],
+                    layout.positions[e.targetId],
+                    e,
+                  );
+                  return (
+                    <g key={e.id}>
+                      <path
+                        d={geometry.path}
+                        fill="none"
+                        stroke="var(--accent-edge)"
+                        strokeWidth="1.75"
+                      />
+                      <polygon
+                        points={geometry.arrowPoints}
+                        fill="var(--accent-edge)"
+                        stroke="var(--accent-edge)"
+                        strokeWidth="0.5"
+                        strokeLinejoin="round"
+                      />
+                    </g>
+                  );
+                })}
               </svg>
               {Object.entries(layout.positions)
                 .filter(([, pos]) =>
