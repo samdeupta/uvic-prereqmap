@@ -11,16 +11,16 @@
 
     <style>
       :root {
-        --bg: #eef1f6;
-        --grid-dot: #d2dae8;
-        --ink: #1b2430;
-        --ink-soft: #5b6472;
-        --panel: #ffffff;
-        --border: #c9d2e0;
-        --accent-all: #3454d1;
-        --accent-any: #c8842a;
-        --accent-edge: #2f9c8f;
-        --accent-target: #c9415a;
+        --bg: #10141c;
+        --grid-dot: #293241;
+        --ink: #e7ebf2;
+        --ink-soft: #98a3b3;
+        --panel: #181e28;
+        --border: #303a49;
+        --accent-all: #7892e8;
+        --accent-any: #d9a15b;
+        --accent-edge: #62b9ad;
+        --accent-target: #e27589;
         --mono:
           ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
         --sans:
@@ -52,6 +52,9 @@
 
       /* ---------- Header ---------- */
       .header {
+        position: relative;
+        z-index: 2000000;
+        overflow: visible;
         display: flex;
         align-items: center;
         gap: 24px;
@@ -89,10 +92,14 @@
         flex: 1;
         min-width: 280px;
       }
-      .search-form input {
+      .course-combobox {
+        position: relative;
         flex: 1;
-        max-width: 260px;
-        padding: 9px 12px;
+        max-width: 360px;
+      }
+      .search-form input {
+        width: 100%;
+        padding: 9px 36px 9px 12px;
         border: 1px solid var(--border);
         border-radius: 8px;
         font-family: var(--mono);
@@ -106,7 +113,88 @@
         border-color: var(--accent-all);
         background: var(--panel);
       }
-      .search-form button {
+      .combobox-caret {
+        position: absolute;
+        right: 11px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--ink-soft);
+        pointer-events: none;
+        font-size: 11px;
+      }
+      .course-dropdown {
+        position: absolute;
+        z-index: 2000001;
+        top: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        max-height: 280px;
+        overflow-y: auto;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42);
+      }
+      .course-option,
+      .course-dropdown-empty {
+        width: 100%;
+        padding: 10px 12px;
+        border: 0;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+        text-align: left;
+      }
+      .course-option:last-child,
+      .course-dropdown-empty:last-child {
+        border-bottom: 0;
+      }
+      .course-dropdown .course-option {
+        appearance: none;
+        -webkit-appearance: none;
+        display: block;
+        width: 100%;
+        padding: 10px 12px;
+        border: 0;
+        border-bottom: 1px solid var(--border);
+        border-radius: 0;
+        background: var(--panel);
+        color: var(--ink);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        transition: background-color 0.1s ease;
+      }
+      .course-dropdown .course-option:hover {
+        background: #232b37;
+      }
+      .course-dropdown .course-option.active {
+        background: #283240;
+      }
+      .course-dropdown .course-option:focus {
+        outline: none;
+      }
+      .course-dropdown .course-option:focus-visible {
+        outline: 2px solid var(--border);
+        outline-offset: -2px;
+      }
+      .course-option-code {
+        display: block;
+        font-family: var(--mono);
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .course-option-name {
+        display: block;
+        margin-top: 2px;
+        color: var(--ink-soft);
+        font-size: 11.5px;
+        line-height: 1.3;
+      }
+      .course-dropdown-empty {
+        color: var(--ink-soft);
+        font-size: 12px;
+      }
+      .search-form .visualize-button {
         padding: 9px 16px;
         border-radius: 8px;
         border: none;
@@ -116,35 +204,11 @@
         font-weight: 600;
         cursor: pointer;
       }
-      .search-form button:hover {
-        background: #2a44b3;
+      .search-form .visualize-button:hover {
+        background: #647fd6;
       }
 
-      .chips {
-        display: flex;
-        gap: 6px;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-      .chips span.label {
-        font-size: 11px;
-        color: var(--ink-soft);
-        margin-right: 2px;
-      }
-      .chip {
-        font-family: var(--mono);
-        font-size: 12px;
-        padding: 5px 9px;
-        border-radius: 6px;
-        border: 1px solid var(--border);
-        background: var(--bg);
-        color: var(--ink-soft);
-        cursor: pointer;
-      }
-      .chip:hover {
-        border-color: var(--accent-all);
-        color: var(--accent-all);
-      }
+
 
       /* ---------- Body ---------- */
       .body {
@@ -153,46 +217,7 @@
         min-height: 0;
       }
 
-      .legend {
-        width: 196px;
-        flex-shrink: 0;
-        padding: 18px 16px;
-        border-right: 1px solid var(--border);
-        background: var(--panel);
-        overflow-y: auto;
-      }
-      .legend h3 {
-        font-size: 11px;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: var(--ink-soft);
-        margin: 0 0 12px;
-      }
-      .legend-item {
-        display: flex;
-        gap: 9px;
-        align-items: flex-start;
-        margin-bottom: 14px;
-      }
-      .legend-swatch {
-        width: 16px;
-        height: 16px;
-        border-radius: 4px;
-        flex-shrink: 0;
-        margin-top: 1px;
-      }
-      .legend-item p {
-        margin: 0;
-        font-size: 12px;
-        line-height: 1.4;
-        color: var(--ink-soft);
-      }
-      .legend-item strong {
-        color: var(--ink);
-        display: block;
-        font-size: 12.5px;
-        margin-bottom: 1px;
-      }
+
 
       .canvas-wrap {
         flex: 1;
@@ -220,7 +245,9 @@
         display: flex;
         flex-direction: column;
         gap: 6px;
-        z-index: 5;
+        /* Keep the viewport controls above graph nodes and option selectors. */
+        z-index: 1000001;
+        isolation: isolate;
       }
       .toolbar button {
         width: 32px;
@@ -261,7 +288,7 @@
         position: absolute;
         border: 2px solid var(--accent-any);
         border-radius: 14px;
-        background: #fffaf1;
+        background: #211d18;
         pointer-events: none;
         z-index: 0;
       }
@@ -316,10 +343,29 @@
         border-radius: 50%;
         background: var(--panel);
         color: var(--accent-any);
-        font-size: 12px;
+        padding: 0;
+        font-size: 0;
+        line-height: 1;
         font-weight: 800;
+        text-align: center;
+        appearance: none;
         cursor: pointer;
-        box-shadow: 0 1px 4px rgba(20, 30, 50, 0.12);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+      }
+      .any-option-selector::before {
+        content: "+";
+        display: block;
+        font-family: Arial, sans-serif;
+        font-size: 16px;
+        font-weight: 400;
+        line-height: 1;
+        transform: translateY(-0.5px);
+      }
+      .any-option-selector.selected::before {
+        content: "✓";
+        font-size: 13px;
+        font-weight: 700;
+        transform: none;
       }
       .any-option-selector.selected {
         background: var(--accent-any);
@@ -333,7 +379,7 @@
         pointer-events: auto;
       }
       .any-group.nested-option {
-        background: #fffaf1;
+        background: #211d18;
       }
       .any-group.nested-option > .any-group-label {
         left: 28px;
@@ -365,10 +411,10 @@
         right: auto;
         top: auto;
         z-index: 1;
-        background: #ffffff;
+        background: var(--panel);
         box-shadow:
-          0 0 0 3px #fffaf1,
-          0 2px 6px rgba(20, 30, 50, 0.22);
+          0 0 0 3px #211d18,
+          0 2px 7px rgba(0, 0, 0, 0.5);
         transform: translate(-50%, -50%);
       }
       .selector-layer .any-option-selector.selected {
@@ -384,7 +430,7 @@
         padding: 10px 12px;
         background: var(--panel);
         border: 1.5px solid var(--border);
-        box-shadow: 0 1px 2px rgba(20, 30, 50, 0.06);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
       }
       .card-course {
         border-color: var(--accent-all);
@@ -393,12 +439,12 @@
       }
       .card-course:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 10px rgba(20, 30, 50, 0.12);
+        box-shadow: 0 5px 14px rgba(0, 0, 0, 0.42);
       }
       .card-course.is-target {
         border-color: var(--accent-target);
         border-width: 2px;
-        background: #fff5f6;
+        background: #251a20;
       }
       .card-course {
         padding: 0;
@@ -418,7 +464,7 @@
         text-align: left;
       }
       .course-summary:hover {
-        background: rgba(52, 84, 209, 0.05);
+        background: rgba(120, 146, 232, 0.11);
       }
       .card-course .code {
         font-family: var(--mono);
@@ -469,7 +515,7 @@
       }
       .course-expand-prereqs:hover {
         border-color: var(--accent-all);
-        background: rgba(52, 84, 209, 0.05);
+        background: rgba(120, 146, 232, 0.11);
       }
 
       .pill {
@@ -561,6 +607,35 @@
         border-radius: 8px;
         padding: 6px 12px;
         white-space: nowrap;
+      }
+
+      input, button {
+        color-scheme: dark;
+      }
+
+      ::selection {
+        background: rgba(120, 146, 232, 0.35);
+        color: var(--ink);
+      }
+
+      * {
+        scrollbar-color: #596273 #181e28;
+      }
+
+      .course-dropdown::-webkit-scrollbar {
+        width: 10px;
+      }
+      .course-dropdown::-webkit-scrollbar-track {
+        background: var(--panel);
+      }
+      .course-dropdown::-webkit-scrollbar-thumb {
+        background: #596273;
+        border: 2px solid var(--panel);
+        border-radius: 999px;
+      }
+
+      .search-form input::placeholder {
+        color: #727e90;
       }
     </style>
   </head>
@@ -2231,69 +2306,16 @@
       }
 
       /* ---------------------------------------------------------------------- */
-      /* Legend                                                                   */
-      /* ---------------------------------------------------------------------- */
-
-      function Legend() {
-        const items = [
-          {
-            color: "var(--accent-target)",
-            title: "Target course",
-            text: "The course you searched for.",
-          },
-          {
-            color: "var(--accent-all)",
-            title: "ALL of",
-            text: "Every branch must be met; branches connect directly from their parent.",
-          },
-          {
-            color: "var(--accent-any)",
-            title: "ANY N of",
-            text: "Choose up to N options. After N are selected, the group collapses to those choices; use the arrow to reopen it.",
-          },
-          {
-            color: "var(--accent-all)",
-            title: "Course",
-            text: "A specific prerequisite course.",
-          },
-          {
-            color: "var(--accent-any)",
-            title: "Units rule",
-            text: "A units-based requirement, e.g. 3 units from a subject or course list.",
-          },
-          {
-            color: "var(--ink-soft)",
-            title: "Free-text rule",
-            text: "Standing, GPA, or permission — can't be expressed as a course.",
-          },
-        ];
-        return (
-          <div className="legend">
-            <h3>Legend</h3>
-            {items.map((it) => (
-              <div className="legend-item" key={it.title}>
-                <div
-                  className="legend-swatch"
-                  style={{ background: it.color }}
-                />
-                <p>
-                  <strong>{it.title}</strong>
-                  {it.text}
-                </p>
-              </div>
-            ))}
-          </div>
-        );
-      }
-
-      /* ---------------------------------------------------------------------- */
       /* App                                                                      */
       /* ---------------------------------------------------------------------- */
 
-      const EXAMPLES = ["ANTH200", "ASTR250", "ART300", "AHVS491B"];
-
       function App() {
         const [inputValue, setInputValue] = useState("");
+        const [courseOptions, setCourseOptions] = useState([]);
+        const [courseOptionsLoading, setCourseOptionsLoading] = useState(true);
+        const [dropdownOpen, setDropdownOpen] = useState(false);
+        const [activeOptionIndex, setActiveOptionIndex] = useState(-1);
+        const comboboxRef = useRef(null);
         const [rootCode, setRootCode] = useState(null);
         const [course, setCourse] = useState(null);
         const [names, setNames] = useState({});
@@ -2305,6 +2327,62 @@
         const [loading, setLoading] = useState(false);
         const [error, setError] = useState(null);
         const autoFetchingCoursesRef = useRef(new Set());
+
+
+        useEffect(() => {
+          let cancelled = false;
+
+          async function loadCourseOptions() {
+            setCourseOptionsLoading(true);
+            try {
+              const url = `${API_BASE}/courses/?fields=code,name,credits`;
+              const res = await fetch(url, { headers: { Accept: "application/json" } });
+              const data = await readJsonResponse(res);
+              if (!res.ok || !Array.isArray(data)) throw new Error("COURSE_LIST_FAILED");
+              if (!cancelled) {
+                setCourseOptions(
+                  data
+                    .filter((item) => item && item.code)
+                    .sort((a, b) => a.code.localeCompare(b.code)),
+                );
+              }
+            } catch (err) {
+              console.warn("Could not load course dropdown options:", err);
+              if (!cancelled) setCourseOptions([]);
+            } finally {
+              if (!cancelled) setCourseOptionsLoading(false);
+            }
+          }
+
+          loadCourseOptions();
+          return () => { cancelled = true; };
+        }, []);
+
+        useEffect(() => {
+          const closeOnOutsideClick = (event) => {
+            if (comboboxRef.current && !comboboxRef.current.contains(event.target)) {
+              setDropdownOpen(false);
+            }
+          };
+          document.addEventListener("mousedown", closeOnOutsideClick);
+          return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+        }, []);
+
+        const filteredCourseOptions = useMemo(() => {
+          const query = normalizeCode(inputValue);
+          const nameQuery = inputValue.trim().toLowerCase();
+          if (!query && !nameQuery) return courseOptions.slice(0, 100);
+          return courseOptions
+            .filter((item) =>
+              normalizeCode(item.code).includes(query) ||
+              String(item.name || "").toLowerCase().includes(nameQuery),
+            )
+            .slice(0, 100);
+        }, [courseOptions, inputValue]);
+
+        useEffect(() => {
+          setActiveOptionIndex(-1);
+        }, [inputValue]);
 
         useEffect(() => {
           if (!rootCode) {
@@ -2412,10 +2490,60 @@
           });
         }, []);
 
+        const chooseCourse = (courseOption) => {
+          const code = normalizeCode(courseOption.code);
+          setInputValue(code);
+          setDropdownOpen(false);
+          setRootCode(code);
+        };
+
         const submit = (e) => {
           e.preventDefault();
           const code = normalizeCode(inputValue);
-          if (code) setRootCode(code);
+          const exactMatch = courseOptions.find(
+            (option) => normalizeCode(option.code) === code,
+          );
+          if (exactMatch) {
+            chooseCourse(exactMatch);
+          } else {
+            setDropdownOpen(true);
+          }
+        };
+
+        const onSearchKeyDown = (e) => {
+          if (!dropdownOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+            e.preventDefault();
+            setDropdownOpen(true);
+            setActiveOptionIndex(
+              e.key === "ArrowDown" ? 0 : Math.max(0, filteredCourseOptions.length - 1),
+            );
+            return;
+          }
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setActiveOptionIndex((index) =>
+              index < 0
+                ? 0
+                : Math.min(index + 1, Math.max(0, filteredCourseOptions.length - 1)),
+            );
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActiveOptionIndex((index) =>
+              index < 0
+                ? Math.max(0, filteredCourseOptions.length - 1)
+                : Math.max(0, index - 1),
+            );
+          } else if (
+            e.key === "Enter" &&
+            dropdownOpen &&
+            activeOptionIndex >= 0 &&
+            filteredCourseOptions[activeOptionIndex]
+          ) {
+            e.preventDefault();
+            chooseCourse(filteredCourseOptions[activeOptionIndex]);
+          } else if (e.key === "Escape") {
+            setDropdownOpen(false);
+          }
         };
 
         const loadNamesForTree = async (tree, fallbackCourse) => {
@@ -2772,11 +2900,6 @@
           }));
         };
 
-        const onSelectCourse = (code) => {
-          setInputValue(code);
-          setRootCode(code);
-        };
-
         return (
           <div className="app">
             <div className="header">
@@ -2787,30 +2910,58 @@
                 </span>
               </div>
               <form className="search-form" onSubmit={submit}>
-                <input
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  placeholder="e.g. CSC225"
-                />
-                <button type="submit">Visualize</button>
+                <div className="course-combobox" ref={comboboxRef}>
+                  <input
+                    value={inputValue}
+                    onChange={(e) => {
+                      setInputValue(e.target.value);
+                      setDropdownOpen(true);
+                    }}
+                    onFocus={() => setDropdownOpen(true)}
+                    onKeyDown={onSearchKeyDown}
+                    placeholder="Search course code or name"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={dropdownOpen}
+                    aria-controls="course-options"
+                  />
+                  <span className="combobox-caret">▼</span>
+                  {dropdownOpen && (
+                    <div className="course-dropdown" id="course-options" role="listbox">
+                      {courseOptionsLoading ? (
+                        <div className="course-dropdown-empty">Loading courses…</div>
+                      ) : filteredCourseOptions.length ? (
+                        filteredCourseOptions.map((option, index) => (
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={index === activeOptionIndex}
+                            className={
+                              "course-option" + (index === activeOptionIndex ? " active" : "")
+                            }
+                            key={option.code}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => chooseCourse(option)}
+                          >
+                            <span className="course-option-code">{option.code}</span>
+                            {option.name && (
+                              <span className="course-option-name">{option.name}</span>
+                            )}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="course-dropdown-empty">
+                          No course with that code
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button type="submit" className="visualize-button">Visualize</button>
               </form>
-              <div className="chips">
-                <span className="label">Try:</span>
-                {EXAMPLES.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className="chip"
-                    onClick={() => onSelectCourse(c)}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <div className="body">
-              <Legend />
               <div
                 style={{
                   flex: 1,
@@ -2825,9 +2976,8 @@
                   <div className="empty-state">
                     <h2>Search a course to explore its prerequisite tree</h2>
                     <p>
-                      Type a course code above, or click one of the examples —
-                      then click any course node in the graph to jump to its own
-                      prerequisites.
+                      Type a course code above to visualize its prerequisite
+                      requirements.
                     </p>
                   </div>
                 )}
