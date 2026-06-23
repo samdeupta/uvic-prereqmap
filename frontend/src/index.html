@@ -36,6 +36,7 @@
       body {
         margin: 0;
         height: 100%;
+        overflow: hidden;
         background: var(--bg);
         color: var(--ink);
         font-family: var(--sans);
@@ -224,6 +225,8 @@
         min-height: 0;
         position: relative;
         overflow: hidden;
+        overscroll-behavior: none;
+        touch-action: none;
         cursor: grab;
         background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
         background-size: 22px 22px;
@@ -1949,7 +1952,7 @@
       /* ---------------------------------------------------------------------- */
 
       function GraphCanvas({
-        layout,
+        layout: requestedLayout,
         names,
         onExpandCourse,
         loadingCourses,
@@ -1961,6 +1964,8 @@
         viewResetKey,
       }) {
         const wrapRef = useRef(null);
+        const [layout, setDisplayedLayout] = useState(requestedLayout);
+        const pendingLayoutRef = useRef(null);
         const [view, setView] = useState({ zoom: 1, panX: 24, panY: 24 });
         const viewRef = useRef(view);
         const dragRef = useRef(null);
@@ -1975,6 +1980,30 @@
         useEffect(() => {
           viewRef.current = view;
         }, [view]);
+
+        const flushPendingLayout = useCallback(() => {
+          const pending = pendingLayoutRef.current;
+          if (!pending) return;
+          pendingLayoutRef.current = null;
+          setDisplayedLayout(pending);
+        }, []);
+
+        // Dependency responses can arrive recursively while the camera is still
+        // moving. Keep the currently displayed graph stable until that motion
+        // finishes, then reveal the newest accumulated layout in one update.
+        useEffect(() => {
+          if (!requestedLayout) {
+            pendingLayoutRef.current = null;
+            setDisplayedLayout(null);
+            return;
+          }
+
+          if (zoomAnimationRef.current != null || zoomTargetRef.current != null) {
+            pendingLayoutRef.current = requestedLayout;
+          } else {
+            setDisplayedLayout(requestedLayout);
+          }
+        }, [requestedLayout]);
 
         const nodeIdentity = useCallback(
           (id, pos) => pos.layoutKey || `${nodeKind(pos.node)}:${pos.node?.code || id}`,
@@ -2057,6 +2086,7 @@
           if (reduceMotion) {
             viewRef.current = target;
             setView(target);
+            requestAnimationFrame(flushPendingLayout);
             return;
           }
 
@@ -2082,11 +2112,12 @@
               zoomAnimationRef.current = requestAnimationFrame(tick);
             } else {
               zoomAnimationRef.current = null;
+              requestAnimationFrame(flushPendingLayout);
             }
           };
 
           zoomAnimationRef.current = requestAnimationFrame(tick);
-        }, []);
+        }, [flushPendingLayout]);
 
         const fitView = useCallback(() => {
           const wrap = wrapRef.current;
@@ -2168,12 +2199,19 @@
           const pointerY = e.clientY - rect.top;
           const deltaScale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 80 : 1;
           const normalizedDelta = e.deltaY * deltaScale;
+          // Trackpad pinch gestures arrive as Ctrl+wheel in modern browsers.
+          // Give those gestures a little more response without making ordinary
+          // mouse-wheel zoom feel overly aggressive.
+          const zoomSensitivity = e.ctrlKey ? 0.0042 : 0.0015;
 
           setView((current) => {
             const baseTarget = zoomTargetRef.current || current;
             const nextZoom = Math.min(
               2,
-              Math.max(0.25, baseTarget.zoom * Math.exp(-normalizedDelta * 0.0015)),
+              Math.max(
+                0.25,
+                baseTarget.zoom * Math.exp(-normalizedDelta * zoomSensitivity),
+              ),
             );
 
             // Keep the graph point beneath the pointer stationary while zooming.
@@ -2212,6 +2250,7 @@
                 } else {
                   zoomAnimationRef.current = null;
                   zoomTargetRef.current = null;
+                  requestAnimationFrame(flushPendingLayout);
                 }
               };
 
@@ -2221,6 +2260,19 @@
             return current;
           });
         };
+
+        // Register the wheel handler directly as non-passive. This reliably
+        // prevents browser/page zoom (including trackpad pinch gestures that
+        // arrive as Ctrl+wheel) while the pointer is over the graph. Only the
+        // graph camera changes; the header and surrounding UI stay fixed.
+        useEffect(() => {
+          const wrap = wrapRef.current;
+          if (!wrap) return;
+
+          const handleWheel = (event) => onWheel(event);
+          wrap.addEventListener("wheel", handleWheel, { passive: false });
+          return () => wrap.removeEventListener("wheel", handleWheel);
+        }, [onWheel]);
 
         useEffect(
           () => () => {
@@ -2331,7 +2383,6 @@
           <div
             className={"canvas-wrap" + (dragRef.current ? " dragging" : "")}
             ref={wrapRef}
-            onWheel={onWheel}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={endDrag}
