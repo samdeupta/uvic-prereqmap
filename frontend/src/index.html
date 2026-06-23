@@ -648,7 +648,12 @@
       const SLOT_W = 200;
       const SLOT_H = 92; // fallback before a node has been measured
       const COURSE_COLLAPSED_H = 40;
-      const GAP_X = 64;
+      // Nested ANY groups expand left around their contents twice: the inner
+      // selectable group uses 30px side padding and its containing group uses
+      // another 16px. With a 64px column gap, that leaves only 2px between the
+      // preceding ANY-group border and the prerequisite group, hiding the edge.
+      // 112px preserves a 50px visible connector lane in that worst case.
+      const GAP_X = 112;
       const GAP_Y = 64;
       const ANY_GROUP_GAP_Y = 20;
 
@@ -1081,6 +1086,14 @@
             return sharedId;
           }
 
+          // Snapshot the layout before placing this node's descendant subtree.
+          // Internal nodes are centered after their children are laid out, which
+          // can otherwise place them on top of a node from an earlier sibling
+          // branch in the same column. If that happens, move this whole subtree
+          // down as one unit so its nodes, groups, and connectors stay aligned.
+          const subtreePositionIdsBefore = new Set(Object.keys(positions));
+          const subtreeGroupCountBefore = groups.length;
+
           const id = "n" + counter++;
           const layoutKey = path;
           const height = nodeHeights[layoutKey] || estimatedNodeHeight(node);
@@ -1125,8 +1138,46 @@
             });
             y = (Math.min(...centers) + Math.max(...centers)) / 2 - height / 2;
           }
+          const nodeX = depth * (SLOT_W + GAP_X);
+          const NODE_COLLISION_GAP = 24;
+          let collisionShift = 0;
+
+          Object.entries(positions).forEach(([otherId, other]) => {
+            // Only compare against nodes/groups that existed before this subtree
+            // was visited. Descendants belonging to this node are intentionally
+            // close to it and will move together when a collision is resolved.
+            if (!subtreePositionIdsBefore.has(otherId) || other.virtual) return;
+
+            const otherHeight = other.height || SLOT_H;
+            const horizontallyOverlaps =
+              nodeX < other.x + SLOT_W && nodeX + SLOT_W > other.x;
+            const verticallyOverlaps =
+              y < other.y + otherHeight + NODE_COLLISION_GAP &&
+              y + height + NODE_COLLISION_GAP > other.y;
+
+            if (horizontallyOverlaps && verticallyOverlaps) {
+              collisionShift = Math.max(
+                collisionShift,
+                other.y + otherHeight + NODE_COLLISION_GAP - y,
+              );
+            }
+          });
+
+          if (collisionShift > 0) {
+            Object.entries(positions).forEach(([descendantId, descendant]) => {
+              if (!subtreePositionIdsBefore.has(descendantId)) {
+                descendant.y += collisionShift;
+              }
+            });
+            for (let i = subtreeGroupCountBefore; i < groups.length; i += 1) {
+              groups[i].y += collisionShift;
+            }
+            y += collisionShift;
+            nextLeafY += collisionShift;
+          }
+
           positions[id] = {
-            x: depth * (SLOT_W + GAP_X),
+            x: nodeX,
             y,
             height,
             layoutKey,
